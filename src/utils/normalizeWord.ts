@@ -56,10 +56,9 @@ const ORDINALS: Record<string, string> = {
   '9th': 'ninth', '10th': 'tenth', '11th': 'eleventh', '12th': 'twelfth',
 };
 
-export function normalizeWord(raw: string): string {
-  const w = raw.trim();
-
-  // Ordinals: 1st, 2nd, 3rd … 12th (lookup), generic Nth (nth → Nth)
+/** Transform just the core token, leaving surrounding whitespace intact. */
+function normalizeCore(w: string): string {
+  // Ordinals: 1st, 2nd, 3rd … 12th (lookup), generic Nth
   const ordLower = w.toLowerCase();
   if (ORDINALS[ordLower]) return ORDINALS[ordLower];
   const ordMatch = w.match(/^(\d+)(st|nd|rd|th)$/i);
@@ -72,19 +71,18 @@ export function normalizeWord(raw: string): string {
   const pctMatch = w.match(/^(\d+(?:\.\d+)?)%$/);
   if (pctMatch) {
     const n = parseFloat(pctMatch[1]);
-    if (!isNaN(n) && Number.isInteger(n)) {
-      return intToWords(n) + ' percent';
-    }
-    // Decimal percentage: keep as-is (rare in speech)
-    return w;
+    if (!isNaN(n) && Number.isInteger(n)) return intToWords(n) + ' percent';
+    return w; // decimal % — keep as-is
   }
 
-  // Plain integers that look like spoken numbers (avoid converting years/IDs)
-  // Only convert standalone small numbers that clearly appear in speech context
-  // — we leave this conservative to avoid mangling "2024" or zip codes.
-  // Uncomment if you want all integers converted:
-  // const numMatch = w.match(/^-?\d+$/);
-  // if (numMatch) { const n = parseInt(w, 10); if (!isNaN(n)) return intToWords(n); }
-
   return w;
+}
+
+export function normalizeWord(raw: string): string {
+  // Preserve original leading/trailing whitespace — Whisper embeds spaces in
+  // word tokens (e.g. " hello") and stripping them removes inter-word gaps.
+  const leading  = raw.match(/^\s*/)?.[0]  ?? '';
+  const trailing = raw.match(/\s*$/)?.[0]  ?? '';
+  const core     = raw.trim();
+  return leading + normalizeCore(core) + trailing;
 }
