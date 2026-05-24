@@ -18,9 +18,36 @@ export default function PlayerPage() {
   const [duration, setDuration] = useState(episode?.duration ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [navVisible, setNavVisible] = useState(true);
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Simulated time ticker for demo (when no real audio/video)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-hide nav while playing
+  const scheduleNavHide = useCallback(() => {
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => {
+      setNavVisible(false);
+    }, 3000);
+  }, []);
+
+  const showNav = useCallback(() => {
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    setNavVisible(true);
+  }, []);
+
+  // When play/pause state changes, manage nav visibility
+  useEffect(() => {
+    if (isPlaying) {
+      scheduleNavHide();
+    } else {
+      showNav();
+    }
+    return () => {
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    };
+  }, [isPlaying, scheduleNavHide, showNav]);
 
   const startTicker = useCallback(() => {
     if (timerRef.current) return;
@@ -139,6 +166,13 @@ export default function PlayerPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handlePlayPause]);
 
+  const handleTranscriptTap = useCallback(() => {
+    if (isPlaying && !navVisible) {
+      showNav();
+      scheduleNavHide();
+    }
+  }, [isPlaying, navVisible, showNav, scheduleNavHide]);
+
   if (!episode) {
     return (
       <div className="flex items-center justify-center h-screen text-muted">
@@ -151,8 +185,12 @@ export default function PlayerPage() {
 
   return (
     <div className="flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
-      {/* Top nav */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-[#1e2330] shrink-0">
+      {/* Top nav — auto-hides while playing */}
+      <div
+        className={`flex items-center justify-between px-4 h-14 border-b border-[#1e2330] shrink-0 transition-all duration-300 overflow-hidden ${
+          navVisible ? 'opacity-100 max-h-14' : 'opacity-0 max-h-0 border-b-0'
+        }`}
+      >
         <button
           className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
           onClick={() => navigate('/')}
@@ -201,13 +239,14 @@ export default function PlayerPage() {
         />
       )}
 
-      {/* Transcript */}
+      {/* Transcript — wrapper catches taps to restore nav while playing */}
       <TranscriptView
         episode={episode}
         currentTime={currentTime}
         isPlaying={isPlaying}
         onSeek={handleSeek}
         onPlayPause={handlePlayPause}
+        onTap={handleTranscriptTap}
       />
 
       {/* Audio controls */}

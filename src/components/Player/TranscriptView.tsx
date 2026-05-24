@@ -9,6 +9,7 @@ interface TranscriptViewProps {
   isPlaying: boolean;
   onSeek: (time: number) => void;
   onPlayPause: () => void;
+  onTap?: () => void;
 }
 
 // ── Free Dictionary API types ────────────────────────────────────────────────
@@ -49,7 +50,7 @@ function cleanWord(text: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function TranscriptView({ episode, currentTime, isPlaying, onSeek, onPlayPause }: TranscriptViewProps) {
+export default function TranscriptView({ episode, currentTime, isPlaying, onSeek, onPlayPause, onTap }: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -65,7 +66,20 @@ export default function TranscriptView({ episode, currentTime, isPlaying, onSeek
   );
   const effectiveActive = activeSentenceIdx !== -1
     ? activeSentenceIdx
-    : transcript.reduce((best, s, i) => (s.startTime <= currentTime ? i : best), 0);
+    : (() => {
+        // In a gap between sentences: look up to 0.5s ahead to handle
+        // YouTube keyframe seek landing slightly before sentence.startTime
+        let lastStarted = 0;
+        for (let i = 0; i < transcript.length; i++) {
+          if (transcript[i].startTime <= currentTime) {
+            lastStarted = i;
+          } else {
+            if (transcript[i].startTime - currentTime < 0.5) return i;
+            break;
+          }
+        }
+        return lastStarted;
+      })();
 
   const activeSentence = transcript[effectiveActive];
   const activeWordIdx = activeSentence
@@ -157,7 +171,8 @@ export default function TranscriptView({ episode, currentTime, isPlaying, onSeek
   const handleContainerClick = useCallback(() => {
     closeBubble();
     onPlayPause();
-  }, [closeBubble, onPlayPause]);
+    onTap?.();
+  }, [closeBubble, onPlayPause, onTap]);
 
   return (
     <div className="relative flex-1 overflow-hidden">
