@@ -150,7 +150,7 @@ export default function PlayerPage() {
   const isVideo = !!episode.videoUrl;
 
   return (
-    <div className="flex flex-col h-screen bg-bg overflow-hidden">
+    <div className="flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
       {/* Top nav */}
       <div className="flex items-center justify-between px-4 h-14 border-b border-[#1e2330] shrink-0">
         <button
