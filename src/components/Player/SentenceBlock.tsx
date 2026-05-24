@@ -1,5 +1,6 @@
 import type { Sentence, SentenceStatus, WordEntry } from '../../types';
 import type { FontSize } from './TranscriptView';
+import { normalizeWord } from '../../utils/normalizeWord';
 
 const STATUS_STYLES: Record<SentenceStatus, string> = {
   past: 'opacity-25',
@@ -77,7 +78,7 @@ export default function SentenceBlock({
                     ? (e) => {
                         e.stopPropagation();
                         onWordClick(
-                          word.text,
+                          normalizeWord(word.text),
                           word.entry,
                           (e.target as HTMLElement).getBoundingClientRect(),
                         );
@@ -85,7 +86,7 @@ export default function SentenceBlock({
                     : undefined
                 }
               >
-                {word.text}
+                {normalizeWord(word.text)}
               </span>
             );
           })}

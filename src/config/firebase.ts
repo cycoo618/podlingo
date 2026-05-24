@@ -8,7 +8,7 @@
  * where onAuthStateChanged never fires in certain WebView contexts.
  */
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -22,9 +22,13 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 
-// initializeAuth with explicit persistence — avoids iframe auth hang in WebViews
+// initializeAuth with explicit persistence + resolver.
+// - browserLocalPersistence: avoids iframe auth hang in WebViews (see CLAUDE.md)
+// - browserPopupRedirectResolver: required for signInWithPopup when using
+//   initializeAuth (getAuth includes it automatically, initializeAuth does not)
 export const auth = initializeAuth(app, {
   persistence: browserLocalPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
 });
 
 export const db = getFirestore(app);
