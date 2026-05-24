@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Episode } from '../../types';
+import type { Episode, Chapter } from '../../types';
 
 const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
@@ -9,6 +9,7 @@ interface AudioControlsProps {
   duration: number;
   isPlaying: boolean;
   playbackRate: number;
+  chapters?: Chapter[];
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (delta: number) => void;
@@ -27,6 +28,7 @@ export default function AudioControls({
   duration,
   isPlaying,
   playbackRate,
+  chapters,
   onPlayPause,
   onSeek,
   onSkip,
@@ -66,6 +68,14 @@ export default function AudioControls({
               className="absolute left-0 top-1/2 -translate-y-1/2 h-[3px] bg-accent rounded-l-full pointer-events-none"
               style={{ width: `${progress}%` }}
             />
+            {/* Chapter tick marks (skip first chapter — startTime=0 is the bar start) */}
+            {chapters && duration > 0 && chapters.slice(1).map((ch) => (
+              <div
+                key={ch.id}
+                className="absolute top-1/2 -translate-y-1/2 w-px h-2.5 bg-white/35 pointer-events-none z-10"
+                style={{ left: `${(ch.startTime / duration) * 100}%` }}
+              />
+            ))}
             <input
               type="range"
               min={0}
@@ -73,7 +83,7 @@ export default function AudioControls({
               step={0.5}
               value={currentTime}
               onChange={(e) => onSeek(parseFloat(e.target.value))}
-              className="w-full relative z-10"
+              className="w-full relative z-20"
               style={{ background: 'transparent' }}
             />
           </div>

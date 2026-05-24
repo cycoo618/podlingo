@@ -5,6 +5,7 @@ import TranscriptView from './TranscriptView';
 import AudioControls from './AudioControls';
 import VideoPlayer from './VideoPlayer';
 import type { VideoHandle } from './VideoPlayer';
+import { useEpisodeProgress } from '../../hooks/useEpisodeProgress';
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,9 @@ export default function PlayerPage() {
   const [duration, setDuration] = useState(episode?.duration ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
+
+  const { getSavedPosition, markProgress, markChapterComplete } =
+    useEpisodeProgress(episode?.id ?? '');
   const [navVisible, setNavVisible] = useState(true);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -197,6 +201,46 @@ export default function PlayerPage() {
     }
   }, [isPlaying, navVisible, showNav, scheduleNavHide]);
 
+  // ── Active chapter (derived, no extra state) ─────────────────────────────
+  const chapters = episode?.chapters;
+  const activeChapterIdx = chapters
+    ? chapters.findIndex(ch => currentTime >= ch.startTime && currentTime < ch.endTime)
+    : -1;
+  // When between chapters (gap) fall back to last chapter whose startTime ≤ currentTime
+  const effectiveChapterIdx = activeChapterIdx !== -1
+    ? activeChapterIdx
+    : (chapters
+        ? chapters.reduce((best, ch, i) => (ch.startTime <= currentTime ? i : best), 0)
+        : 0);
+  const activeChapter = chapters?.[effectiveChapterIdx] ?? null;
+
+  // ── Auto-resume: seek to saved position once media reports its duration ───
+  const didAutoResumeRef = useRef(false);
+  const handleLoadedMetadata = useCallback((dur: number) => {
+    setDuration(dur);
+    if (!didAutoResumeRef.current) {
+      didAutoResumeRef.current = true;
+      const saved = getSavedPosition();
+      if (saved > 1) {
+        // Small delay so VideoPlayer's internal state settles before seeking
+        setTimeout(() => handleSeek(saved), 300);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getSavedPosition]);
+
+  // ── Save progress every 5s while playing ─────────────────────────────────
+  useEffect(() => {
+    if (!isPlaying || !episode || !activeChapter) return;
+    const chId = activeChapter.id;
+    markProgress(currentTime, chId);
+    // Mark chapter complete when within 10s of its end
+    if (currentTime >= activeChapter.endTime - 10) {
+      markChapterComplete(chId, currentTime);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Math.floor(currentTime / 5)]); // fires at most once per 5-second bucket
+
   if (!episode) {
     return (
       <div className="flex items-center justify-center h-screen text-muted">
@@ -226,8 +270,13 @@ export default function PlayerPage() {
         <div className="text-center min-w-0 px-2">
           <p className="text-xs text-muted truncate">{episode.podcastName}</p>
           <p className="text-sm font-medium text-slate-200 truncate max-w-[220px] leading-tight">
-            {episode.title}
+            {activeChapter ? activeChapter.title : episode.title}
           </p>
+          {activeChapter && chapters && chapters.length > 1 && (
+            <p className="text-[10px] text-muted/60 mt-0.5">
+              {effectiveChapterIdx + 1} / {chapters.length}
+            </p>
+          )}
         </div>
         <button className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -243,7 +292,7 @@ export default function PlayerPage() {
             ref={videoRef}
             src={episode.videoUrl}
             onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={setDuration}
+            onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
           />
@@ -256,7 +305,7 @@ export default function PlayerPage() {
           ref={audioRef}
           src={episode.audioUrl}
           onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+          onLoadedMetadata={(e) => handleLoadedMetadata(e.currentTarget.duration)}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={() => setIsPlaying(false)}
@@ -281,6 +330,7 @@ export default function PlayerPage() {
           duration={duration}
           isPlaying={isPlaying}
           playbackRate={playbackRate}
+          chapters={chapters}
           onPlayPause={handlePlayPause}
           onSeek={handleSeek}
           onSkip={handleSkip}

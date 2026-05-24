@@ -565,6 +565,22 @@ export const mockEpisodes: Episode[] = [
         ],
       },
     ],
+    chapters: [
+      {
+        id: 'c1',
+        title: 'Not Correlated to Result',
+        description: 'Post-Olympic depression is real — and it doesn\'t matter if you won or lost.',
+        startTime: 0,
+        endTime: 24.9,
+      },
+      {
+        id: 'c2',
+        title: 'You\'re Still Feeling This Way',
+        description: 'Even with a perfect Olympics — broken records, gold medals — the emptiness still comes.',
+        startTime: 24.9,
+        endTime: 70.5,
+      },
+    ],
   },
   {
     id: 'ep2',

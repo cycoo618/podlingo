@@ -30,6 +30,14 @@ export interface Sentence {
   wordMappings: WordMapping[];
 }
 
+export interface Chapter {
+  id: string;
+  title: string;
+  description?: string;
+  startTime: number;  // seconds, same coordinate as Sentence.startTime
+  endTime: number;
+}
+
 export interface Episode {
   id: string;
   podcastName: string;
@@ -41,6 +49,7 @@ export interface Episode {
   duration: number;
   language: 'en-zh' | 'zh-en';
   transcript: Sentence[];
+  chapters?: Chapter[];
 }
 
 export type SentenceStatus = 'past' | 'active' | 'upcoming';
