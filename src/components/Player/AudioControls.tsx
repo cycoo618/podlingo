@@ -1,6 +1,6 @@
 import type { Episode } from '../../types';
 
-const SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0];
+const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
 interface AudioControlsProps {
   episode: Episode;
@@ -33,19 +33,16 @@ export default function AudioControls({
 }: AudioControlsProps) {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  const cycleRate = () => {
-    const idx = SPEEDS.indexOf(playbackRate);
-    onRateChange(SPEEDS[(idx + 1) % SPEEDS.length]);
-  };
-
   return (
-    <div className="bg-[#0d0f14] border-t border-[#1e2330]">
+    <div
+      className="bg-[#0d0f14] border-t border-[#1e2330]"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {/* Progress bar */}
       <div className="px-4 pt-3">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted w-10 text-right tabular-nums">{fmt(currentTime)}</span>
           <div className="flex-1 relative h-3 flex items-center">
-            {/* filled track */}
             <div
               className="absolute left-0 top-1/2 -translate-y-1/2 h-[3px] bg-accent rounded-l-full pointer-events-none"
               style={{ width: `${progress}%` }}
@@ -65,8 +62,8 @@ export default function AudioControls({
         </div>
       </div>
 
-      {/* Controls row */}
-      <div className="flex items-center gap-2 px-4 pb-4 pt-2">
+      {/* Main controls row */}
+      <div className="flex items-center gap-2 px-4 pt-2 pb-1">
         {/* Cover + info */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <img
@@ -82,9 +79,8 @@ export default function AudioControls({
           </div>
         </div>
 
-        {/* Playback controls */}
+        {/* Skip + Play */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* -10s */}
           <button
             className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
             onClick={() => onSkip(-10)}
@@ -96,7 +92,6 @@ export default function AudioControls({
             </svg>
           </button>
 
-          {/* Play/Pause */}
           <button
             className="w-12 h-12 flex items-center justify-center bg-accent text-bg rounded-full hover:bg-accent/90 transition-colors shrink-0 shadow-lg"
             onClick={onPlayPause}
@@ -112,7 +107,6 @@ export default function AudioControls({
             )}
           </button>
 
-          {/* +10s */}
           <button
             className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
             onClick={() => onSkip(10)}
@@ -123,15 +117,24 @@ export default function AudioControls({
               <text x="12" y="16" textAnchor="middle" fontSize="6" fontWeight="bold" fill="currentColor">10</text>
             </svg>
           </button>
-
-          {/* Speed */}
-          <button
-            className="px-2.5 h-9 text-xs font-semibold text-slate-400 hover:text-accent transition-colors rounded-lg hover:bg-white/5 tabular-nums"
-            onClick={cycleRate}
-          >
-            {playbackRate}×
-          </button>
         </div>
+      </div>
+
+      {/* Speed chips row */}
+      <div className="flex items-center justify-center gap-1.5 px-4 pb-3">
+        {SPEEDS.map((speed) => (
+          <button
+            key={speed}
+            onClick={() => onRateChange(speed)}
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors tabular-nums ${
+              playbackRate === speed
+                ? 'bg-accent/20 text-accent'
+                : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            {speed === 1 ? '1×' : `${speed}×`}
+          </button>
+        ))}
       </div>
     </div>
   );

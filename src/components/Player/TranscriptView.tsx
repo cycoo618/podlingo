@@ -6,6 +6,7 @@ import WordBubble from './WordBubble';
 interface TranscriptViewProps {
   episode: Episode;
   currentTime: number;
+  isPlaying: boolean;
   onSeek: (time: number) => void;
   onPlayPause: () => void;
 }
@@ -48,7 +49,7 @@ function cleanWord(text: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function TranscriptView({ episode, currentTime, onSeek, onPlayPause }: TranscriptViewProps) {
+export default function TranscriptView({ episode, currentTime, isPlaying, onSeek, onPlayPause }: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -93,7 +94,18 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
     setBubble(null);
   }, []);
 
-  const handleWordClick = useCallback(async (wordText: string, preloadedEntry: WordEntry | undefined, rect: DOMRect) => {
+  const handleWordClick = useCallback(async (
+    wordText: string,
+    preloadedEntry: WordEntry | undefined,
+    rect: DOMRect,
+    wordStartTime?: number,
+  ) => {
+    // Always seek to the word's position in the video
+    if (wordStartTime !== undefined) onSeek(wordStartTime);
+
+    // Dictionary lookup only while playing
+    if (!isPlaying) return;
+
     const key = cleanWord(wordText);
     if (!key) return;
 
@@ -113,8 +125,6 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
     // 2. Already cached
     const cached = cache.current.get(key);
     if (cached === 'not_found') {
-      // show bubble with no-result state (entry stays null permanently would confuse
-      // user — just close silently)
       activeWordRef.current = null;
       return;
     }
@@ -132,7 +142,6 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
       const data: DictEntry[] = await res.json();
       const entry = mapApiToEntry(data);
       cache.current.set(key, entry);
-      // Only update if this word is still the active lookup
       if (activeWordRef.current === key) {
         setBubble({ word: key, entry, rect });
       }
@@ -143,7 +152,7 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
         activeWordRef.current = null;
       }
     }
-  }, [closeBubble]);
+  }, [isPlaying, onSeek, closeBubble]);
 
   const handleContainerClick = useCallback(() => {
     closeBubble();

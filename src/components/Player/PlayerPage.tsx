@@ -205,6 +205,7 @@ export default function PlayerPage() {
       <TranscriptView
         episode={episode}
         currentTime={currentTime}
+        isPlaying={isPlaying}
         onSeek={handleSeek}
         onPlayPause={handlePlayPause}
       />
