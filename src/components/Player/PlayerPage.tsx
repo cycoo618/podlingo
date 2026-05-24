@@ -365,8 +365,8 @@ export default function PlayerPage() {
           <p className="text-xs text-muted mb-2 font-medium tracking-wide">主题</p>
           <div className="flex gap-2">
             {([
-              { key: 'night', label: '夜间' },
-              { key: 'day', label: '日间' },
+              { key: 'night', label: '深色' },
+              { key: 'day', label: '浅色' },
             ] as { key: 'night' | 'day'; label: string }[]).map(({ key, label }) => (
               <button
                 key={key}
