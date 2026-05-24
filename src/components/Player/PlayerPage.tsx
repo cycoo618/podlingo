@@ -21,25 +21,26 @@ export default function PlayerPage() {
   const [navVisible, setNavVisible] = useState(true);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Seek floor: after an explicit seek, ignore timeUpdate events that are
-  // below the target (YouTube keyframe lands slightly before sentence.startTime)
-  const seekFloorRef = useRef<number | null>(null);
-  const seekFloorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // After any explicit seek, freeze the displayed time for ~700 ms.
+  // This prevents two classes of flash:
+  //   (a) YouTube keyframe lands slightly before sentence.startTime → old time < target → would show prev sentence
+  //   (b) Polling reads the OLD position (above target) before seek completes → premature floor release
+  // While frozen the display stays at the seeked time; normal tracking resumes after the freeze.
+  const seekFreezeRef = useRef(false);
+  const seekFreezeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTimeUpdate = useCallback((time: number) => {
-    if (seekFloorRef.current !== null) {
-      if (time >= seekFloorRef.current - 0.05) {
-        // Media has caught up — release the floor
-        seekFloorRef.current = null;
-        if (seekFloorTimerRef.current) {
-          clearTimeout(seekFloorTimerRef.current);
-          seekFloorTimerRef.current = null;
-        }
-      } else {
-        return; // still behind the seek point, ignore
-      }
-    }
+    if (seekFreezeRef.current) return;   // frozen — ignore all media updates
     setCurrentTime(time);
+  }, []);
+
+  const activateSeekFreeze = useCallback(() => {
+    seekFreezeRef.current = true;
+    if (seekFreezeTimerRef.current) clearTimeout(seekFreezeTimerRef.current);
+    seekFreezeTimerRef.current = setTimeout(() => {
+      seekFreezeRef.current = false;
+      seekFreezeTimerRef.current = null;
+    }, 700);
   }, []);
 
   // Simulated time ticker for demo (when no real audio/video)
@@ -122,30 +123,19 @@ export default function PlayerPage() {
     }
   }, [episode?.videoUrl, isPlaying, startTicker, stopTicker]);
 
-  const setSeekFloor = useCallback((time: number) => {
-    seekFloorRef.current = time;
-    if (seekFloorTimerRef.current) clearTimeout(seekFloorTimerRef.current);
-    // Safety release after 2s in case media never reaches the point
-    seekFloorTimerRef.current = setTimeout(() => {
-      seekFloorRef.current = null;
-      seekFloorTimerRef.current = null;
-    }, 2000);
-  }, []);
-
   const handleSeek = useCallback((time: number) => {
     setCurrentTime(time);
-    setSeekFloor(time);
+    activateSeekFreeze();
     if (episode?.videoUrl) {
       videoRef.current?.seekTo(time);
     } else if (audioRef.current) {
       audioRef.current.currentTime = time;
     }
-  }, [episode?.videoUrl, setSeekFloor]);
+  }, [episode?.videoUrl, activateSeekFreeze]);
 
   const handleSkip = useCallback((delta: number) => {
     setCurrentTime((t) => {
       const next = Math.max(0, Math.min(t + delta, duration));
-      setSeekFloor(next);
       if (episode?.videoUrl) {
         videoRef.current?.seekTo(next);
       } else if (audioRef.current) {
@@ -153,7 +143,8 @@ export default function PlayerPage() {
       }
       return next;
     });
-  }, [duration, episode?.videoUrl, setSeekFloor]);
+    activateSeekFreeze();
+  }, [duration, episode?.videoUrl, activateSeekFreeze]);
 
   const handleRateChange = useCallback((rate: number) => {
     setPlaybackRate(rate);
