@@ -220,6 +220,20 @@ export default function PlayerPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handlePlayPause]);
 
+  // Like handleSeek but keeps transcript display at `time` while seeking video
+  // 0.2s earlier — prevents the first word of a sentence being clipped by a
+  // keyframe landing just after the sentence boundary.
+  const handleSentenceSeek = useCallback((time: number) => {
+    setCurrentTime(time);          // transcript stays at the clicked sentence
+    activateSeekFreeze();
+    const seekTime = Math.max(0, time - 0.2);
+    if (episode?.videoUrl) {
+      videoRef.current?.seekTo(seekTime);
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = seekTime;
+    }
+  }, [episode?.videoUrl, activateSeekFreeze]);
+
   const handleTranscriptTap = useCallback(() => {
     if (isPlaying && !navVisible) {
       showNav();
@@ -281,8 +295,8 @@ export default function PlayerPage() {
     <div className="relative flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
       {/* Top nav — auto-hides while playing */}
       <div
-        className={`flex items-center justify-between px-4 h-14 border-b border-[#1e2330] shrink-0 transition-all duration-300 overflow-hidden ${
-          navVisible ? 'opacity-100 max-h-14' : 'opacity-0 max-h-0 border-b-0'
+        className={`flex items-center justify-between px-4 h-14 border-b border-border shrink-0 transition-all duration-300 overflow-hidden ${
+          navVisible ? 'opacity-100 max-h-14' : 'opacity-0 max-h-0 border-b-0 pointer-events-none'
         }`}
       >
         <button
@@ -321,7 +335,8 @@ export default function PlayerPage() {
       {showSettings && (
         <div
           ref={settingsPanelRef}
-          className="absolute top-14 right-4 z-50 bg-[#1a1f2e] border border-[#2a3348] rounded-2xl shadow-2xl p-4 min-w-[192px]"
+          className="absolute top-14 right-4 z-50 bg-surface-2 rounded-2xl shadow-2xl p-4 min-w-[192px] border"
+          style={{ borderColor: 'var(--clr-border3)' }}
         >
           {/* Font size */}
           <p className="text-xs text-muted mb-2 font-medium tracking-wide">字体大小</p>
@@ -337,8 +352,9 @@ export default function PlayerPage() {
                 className={`flex-1 py-2 rounded-xl border transition-colors ${cls} ${
                   fontSize === key
                     ? 'bg-accent/20 border-accent/50 text-accent'
-                    : 'border-[#2a3348] text-slate-400 hover:text-white hover:border-slate-500'
+                    : 'text-slate-400 hover:text-white'
                 }`}
+                style={fontSize !== key ? { borderColor: 'var(--clr-border3)' } : undefined}
               >
                 {label}
               </button>
@@ -358,8 +374,9 @@ export default function PlayerPage() {
                 className={`flex-1 py-2 rounded-xl border text-sm transition-colors ${
                   theme === key
                     ? 'bg-accent/20 border-accent/50 text-accent'
-                    : 'border-[#2a3348] text-slate-400 hover:text-white hover:border-slate-500'
+                    : 'text-slate-400 hover:text-white'
                 }`}
+                style={theme !== key ? { borderColor: 'var(--clr-border3)' } : undefined}
               >
                 {label}
               </button>
@@ -400,6 +417,7 @@ export default function PlayerPage() {
         episode={episode}
         currentTime={currentTime}
         onSeek={handleSeek}
+        onSentenceSeek={handleSentenceSeek}
         onPlayPause={handlePlayPause}
         onTap={handleTranscriptTap}
         fontSize={fontSize}

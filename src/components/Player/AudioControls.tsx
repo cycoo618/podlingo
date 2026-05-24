@@ -56,7 +56,7 @@ export default function AudioControls({
 
   return (
     <div
-      className="bg-[#0d0f14] border-t border-[#1e2330]"
+      className="bg-bg border-t border-border"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {/* Progress bar */}
@@ -150,7 +150,10 @@ export default function AudioControls({
           {/* Speed button with upward popover */}
           <div className="relative">
             {showSpeedMenu && (
-              <div className="absolute bottom-full right-0 mb-2 bg-[#1a1d27] border border-[#2a2d3a] rounded-xl overflow-hidden shadow-xl">
+              <div
+                className="absolute bottom-full right-0 mb-2 rounded-xl overflow-hidden shadow-xl border"
+                style={{ backgroundColor: 'var(--clr-speed-bg)', borderColor: 'var(--clr-border2)' }}
+              >
                 {[...SPEEDS].reverse().map((speed) => (
                   <button
                     key={speed}

@@ -9,6 +9,9 @@ interface TranscriptViewProps {
   episode: Episode;
   currentTime: number;
   onSeek: (time: number) => void;
+  /** Sentence-tap seek: video seeks 0.2s early to avoid first-word clipping.
+   *  Falls back to onSeek if not provided. */
+  onSentenceSeek?: (time: number) => void;
   onPlayPause: () => void;
   onTap?: () => void;
   fontSize?: FontSize;
@@ -69,7 +72,7 @@ function cleanWord(text: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function TranscriptView({
-  episode, currentTime, onSeek, onPlayPause, onTap, fontSize = 'base',
+  episode, currentTime, onSeek, onSentenceSeek, onPlayPause, onTap, fontSize = 'base',
 }: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -168,8 +171,8 @@ export default function TranscriptView({
 
   const handleSentenceClick = useCallback((startTime: number) => {
     if (bubble) { closeBubble(); }
-    else { onSeek(startTime); }
-  }, [bubble, closeBubble, onSeek]);
+    else { (onSentenceSeek ?? onSeek)(startTime); }
+  }, [bubble, closeBubble, onSeek, onSentenceSeek]);
 
   const handleContainerClick = useCallback(() => {
     if (didScrollRef.current) return;   // was a scroll gesture, not a tap

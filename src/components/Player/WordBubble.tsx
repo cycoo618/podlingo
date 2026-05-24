@@ -60,18 +60,19 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
         pointerEvents: pos ? 'auto' : 'none',
       }}
     >
-      {/* Arrow up */}
+      {/* Arrow up — uses CSS var so it tracks day/night theme */}
       {pos?.arrowDirection === 'up' && (
         <div className="absolute -top-2 w-0 h-0" style={{
           left: pos.arrowLeft,
           borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
-          borderBottom: '8px solid #1a1f2e',
+          borderBottom: '8px solid var(--clr-surface2)',
         }} />
       )}
 
+      {/* bg-surface-2 → named Tailwind class; theme override works without escaping */}
       <div
-        className="bg-[#1a1f2e] border border-[#2a3348] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxHeight: MAX_BUBBLE_H }}
+        className="bg-surface-2 rounded-2xl shadow-2xl overflow-hidden flex flex-col border"
+        style={{ maxHeight: MAX_BUBBLE_H, borderColor: 'var(--clr-border3)' }}
       >
         {entry === null ? (
           /* ── Loading state ── */
@@ -83,7 +84,7 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
           /* ── Loaded state ── */
           <>
             {/* Header — always visible */}
-            <div className="px-4 pt-4 pb-3 border-b border-[#2a3348] shrink-0">
+            <div className="px-4 pt-4 pb-3 border-b shrink-0" style={{ borderColor: 'var(--clr-border3)' }}>
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-xl font-semibold text-white leading-tight">{entry.word}</p>
@@ -117,7 +118,7 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
         <div className="absolute -bottom-2 w-0 h-0" style={{
           left: pos.arrowLeft,
           borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
-          borderTop: '8px solid #1a1f2e',
+          borderTop: '8px solid var(--clr-surface2)',
         }} />
       )}
     </div>

@@ -58,10 +58,31 @@ input[type='range']::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-/* ── Day mode overrides ───────────────────────────────────────────────────── */
-[data-theme='day'] body { background-color: #f0f4f8; color: #1e293b; }
+/* ── CSS custom properties (theme tokens) ────────────────────────────────── */
+/* Used as inline-style fallbacks for elements without named Tailwind aliases  */
+:root {
+  --clr-surface2:     #1a1f2e;   /* bg-surface-2 */
+  --clr-speed-bg:     #1a1d27;   /* speed-menu background (slightly darker) */
+  --clr-border2:      #2a2d3a;   /* speed-menu border */
+  --clr-border3:      #2a3348;   /* bubble / panel border */
+}
+[data-theme='day'] {
+  --clr-surface2:     #f1f5f9;
+  --clr-speed-bg:     #f8fafc;
+  --clr-border2:      #e2e8f0;
+  --clr-border3:      #e2e8f0;
+}
 
-[data-theme='day'] .bg-bg          { background-color: #f0f4f8 !important; }
+/* ── Day mode overrides ───────────────────────────────────────────────────── */
+/* Primary: target named Tailwind classes (no bracket escaping needed)         */
+/* Fallback: keep escaped-bracket selectors for direct hex uses still present  */
+[data-theme='day'] body        { background-color: #f0f4f8; color: #1e293b; }
+
+[data-theme='day'] .bg-bg      { background-color: #f0f4f8 !important; }
+[data-theme='day'] .bg-surface { background-color: #ffffff  !important; }
+[data-theme='day'] .bg-surface-2 { background-color: #f1f5f9 !important; }
+[data-theme='day'] .border-border { border-color: #cbd5e1  !important; }
+
 [data-theme='day'] .bg-\[#0d0f14\] { background-color: #f0f4f8 !important; }
 [data-theme='day'] .bg-\[#161920\] { background-color: #ffffff !important; }
 [data-theme='day'] .bg-\[#1a1d27\] { background-color: #f8fafc !important; }
