@@ -12,12 +12,15 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<BubblePosition | null>(null);
 
+  // Max height the bubble content is allowed to be (leaves 24px breathing room)
+  const MAX_BUBBLE_H = Math.round(window.innerHeight * 0.55);
+
   useEffect(() => {
     const bubble = bubbleRef.current;
     if (!bubble) return;
 
     const bubbleW = Math.min(280, window.innerWidth - 32);
-    const bubbleH = bubble.offsetHeight || (entry ? 160 : 72);
+    const bubbleH = Math.min(bubble.scrollHeight || (entry ? 160 : 72), MAX_BUBBLE_H);
     const NAV_HEIGHT = 56;
     const GAP = 8;
 
@@ -33,7 +36,7 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
     } else {
       setPos({ top: anchorRect.bottom + GAP, left, arrowDirection: 'up', arrowLeft });
     }
-  }, [anchorRect, entry]);
+  }, [anchorRect, entry, MAX_BUBBLE_H]);
 
   // close on outside click
   useEffect(() => {
@@ -66,7 +69,10 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
         }} />
       )}
 
-      <div className="bg-[#1a1f2e] border border-[#2a3348] rounded-2xl shadow-2xl overflow-hidden">
+      <div
+        className="bg-[#1a1f2e] border border-[#2a3348] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        style={{ maxHeight: MAX_BUBBLE_H }}
+      >
         {entry === null ? (
           /* ── Loading state ── */
           <div className="px-4 py-4 flex items-center gap-3">
@@ -76,7 +82,8 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
         ) : (
           /* ── Loaded state ── */
           <>
-            <div className="px-4 pt-4 pb-3 border-b border-[#2a3348]">
+            {/* Header — always visible */}
+            <div className="px-4 pt-4 pb-3 border-b border-[#2a3348] shrink-0">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-xl font-semibold text-white leading-tight">{entry.word}</p>
@@ -92,11 +99,12 @@ export default function WordBubble({ word, entry, anchorRect, onClose }: WordBub
               </div>
             </div>
 
-            <div className="px-4 py-3 space-y-1.5">
+            {/* Definitions — scrollable if tall */}
+            <div className="px-4 py-3 space-y-1.5 overflow-y-auto overscroll-contain">
               {entry.definitions.map((def, i) => (
                 <div key={i} className="flex gap-2 text-sm">
                   <span className="text-accent font-medium shrink-0">{i + 1}.</span>
-                  <span className="text-slate-300">{def}</span>
+                  <span className="text-slate-300 leading-snug">{def}</span>
                 </div>
               ))}
             </div>

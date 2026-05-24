@@ -3,13 +3,15 @@ import type { Episode, WordEntry } from '../../types';
 import SentenceBlock from './SentenceBlock';
 import WordBubble from './WordBubble';
 
+export type FontSize = 'sm' | 'base' | 'lg';
+
 interface TranscriptViewProps {
   episode: Episode;
   currentTime: number;
-  isPlaying: boolean;
   onSeek: (time: number) => void;
   onPlayPause: () => void;
   onTap?: () => void;
+  fontSize?: FontSize;
 }
 
 // ── Free Dictionary API types ────────────────────────────────────────────────
@@ -17,26 +19,42 @@ interface DictDef { definition: string }
 interface DictMeaning { partOfSpeech: string; definitions: DictDef[] }
 interface DictEntry { word: string; phonetics: { text?: string }[]; meanings: DictMeaning[] }
 
-function mapApiToEntry(data: DictEntry[]): WordEntry {
+/** Translate English text to Chinese via MyMemory (free, no key, CORS-friendly). */
+async function translateToCn(text: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh`
+    );
+    const data = await res.json();
+    return (data.responseData?.translatedText as string) || text;
+  } catch {
+    return text;
+  }
+}
+
+async function mapApiToEntry(data: DictEntry[]): Promise<WordEntry> {
   const r = data[0];
   const phonetic = r.phonetics.find((p) => p.text)?.text ?? '';
 
-  const defs: string[] = [];
+  // Collect up to 3 English definitions
+  const enDefs: string[] = [];
   for (const m of r.meanings) {
     for (const d of m.definitions) {
-      if (defs.length >= 3) break;
-      // prefix part-of-speech when multiple meanings exist
+      if (enDefs.length >= 3) break;
       const prefix = r.meanings.length > 1 ? `[${m.partOfSpeech}] ` : '';
-      defs.push(prefix + d.definition);
+      enDefs.push(prefix + d.definition);
     }
-    if (defs.length >= 3) break;
+    if (enDefs.length >= 3) break;
   }
+
+  // Translate all definitions in parallel
+  const cnDefs = await Promise.all(enDefs.map(translateToCn));
 
   return {
     word: r.word,
     phonetic,
     partOfSpeech: r.meanings[0]?.partOfSpeech ?? '',
-    definitions: defs,
+    definitions: cnDefs,
     contextEn: '',
     contextCn: '',
     highlightInContext: '',
@@ -50,14 +68,19 @@ function cleanWord(text: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function TranscriptView({ episode, currentTime, onSeek, onPlayPause, onTap }: TranscriptViewProps) {
+export default function TranscriptView({
+  episode, currentTime, onSeek, onPlayPause, onTap, fontSize = 'base',
+}: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // bubble: null = closed, entry null = loading, entry set = ready
   const [bubble, setBubble] = useState<{ word: string; entry: WordEntry | null; rect: DOMRect } | null>(null);
-  const activeWordRef = useRef<string | null>(null);   // track current lookup to cancel stale responses
+  const activeWordRef = useRef<string | null>(null);
   const cache = useRef<Map<string, WordEntry | 'not_found'>>(new Map());
+
+  // Scroll detection — prevents "scroll = tap" on mobile
+  const didScrollRef = useRef(false);
 
   const { transcript } = episode;
 
@@ -67,8 +90,6 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
   const effectiveActive = activeSentenceIdx !== -1
     ? activeSentenceIdx
     : (() => {
-        // In a gap between sentences: look up to 0.5s ahead to handle
-        // YouTube keyframe seek landing slightly before sentence.startTime
         let lastStarted = 0;
         for (let i = 0; i < transcript.length; i++) {
           if (transcript[i].startTime <= currentTime) {
@@ -113,72 +134,47 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
     preloadedEntry: WordEntry | undefined,
     rect: DOMRect,
   ) => {
-    // Word clicks: dictionary lookup only, no seek, works whether playing or paused
     const key = cleanWord(wordText);
     if (!key) return;
 
-    // Toggle off if tapping same word again
-    if (activeWordRef.current === key) {
-      closeBubble();
-      return;
-    }
+    if (activeWordRef.current === key) { closeBubble(); return; }
     activeWordRef.current = key;
 
-    // 1. Pre-loaded entry from episode data
+    // 1. Pre-loaded entry (already in Chinese from episode data)
     if (preloadedEntry) {
       setBubble({ word: key, entry: preloadedEntry, rect });
       return;
     }
 
-    // 2. Already cached
+    // 2. Cached
     const cached = cache.current.get(key);
-    if (cached === 'not_found') {
-      activeWordRef.current = null;
-      return;
-    }
-    if (cached) {
-      setBubble({ word: key, entry: cached, rect });
-      return;
-    }
+    if (cached === 'not_found') { activeWordRef.current = null; return; }
+    if (cached) { setBubble({ word: key, entry: cached, rect }); return; }
 
-    // 3. Fetch from Free Dictionary API
+    // 3. Fetch from Free Dictionary API → translate definitions to Chinese
     setBubble({ word: key, entry: null, rect });
-
     try {
       const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(key)}`);
       if (!res.ok) throw new Error('not_found');
       const data: DictEntry[] = await res.json();
-      const entry = mapApiToEntry(data);
+      const entry = await mapApiToEntry(data);   // ← now async, translates defs
       cache.current.set(key, entry);
-      if (activeWordRef.current === key) {
-        setBubble({ word: key, entry, rect });
-      }
+      if (activeWordRef.current === key) setBubble({ word: key, entry, rect });
     } catch {
       cache.current.set(key, 'not_found');
-      if (activeWordRef.current === key) {
-        setBubble(null);
-        activeWordRef.current = null;
-      }
+      if (activeWordRef.current === key) { setBubble(null); activeWordRef.current = null; }
     }
   }, [closeBubble]);
 
-  // Sentence blank-area click: close bubble if open, else seek to sentence
   const handleSentenceClick = useCallback((startTime: number) => {
-    if (bubble) {
-      closeBubble();
-    } else {
-      onSeek(startTime);
-    }
+    if (bubble) { closeBubble(); }
+    else { onSeek(startTime); }
   }, [bubble, closeBubble, onSeek]);
 
-  // Container (outside sentences) click: close bubble if open, else play/pause
   const handleContainerClick = useCallback(() => {
-    if (bubble) {
-      closeBubble();
-    } else {
-      onPlayPause();
-      onTap?.();
-    }
+    if (didScrollRef.current) return;   // was a scroll gesture, not a tap
+    if (bubble) { closeBubble(); }
+    else { onPlayPause(); onTap?.(); }
   }, [bubble, closeBubble, onPlayPause, onTap]);
 
   return (
@@ -187,6 +183,8 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
         ref={containerRef}
         className="h-full overflow-y-auto px-6 py-8 space-y-6"
         onClick={handleContainerClick}
+        onTouchStart={() => { didScrollRef.current = false; }}
+        onTouchMove={() => { didScrollRef.current = true; }}
       >
         {transcript.map((sentence, i) => {
           const status =
@@ -203,6 +201,7 @@ export default function TranscriptView({ episode, currentTime, onSeek, onPlayPau
                 activeWordIndex={activeWordIdx}
                 onWordClick={handleWordClick}
                 onSentenceClick={handleSentenceClick}
+                fontSize={fontSize}
               />
             </div>
           );

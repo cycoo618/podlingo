@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mockEpisodes } from '../../data/mockEpisodes';
 import TranscriptView from './TranscriptView';
+import type { FontSize } from './TranscriptView';
 import AudioControls from './AudioControls';
 import VideoPlayer from './VideoPlayer';
 import type { VideoHandle } from './VideoPlayer';
@@ -19,11 +20,36 @@ export default function PlayerPage() {
   const [duration, setDuration] = useState(episode?.duration ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [fontSize, setFontSize] = useState<FontSize>('base');
+  const [theme, setTheme] = useState<'night' | 'day'>('night');
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
 
   const { getSavedPosition, markProgress, markChapterComplete } =
     useEpisodeProgress(episode?.id ?? '');
   const [navVisible, setNavVisible] = useState(true);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Apply theme to <html> so index.css [data-theme='day'] selectors fire
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme === 'day' ? 'day' : '');
+  }, [theme]);
+
+  // Close settings panel on outside click
+  useEffect(() => {
+    if (!showSettings) return;
+    const handle = (e: MouseEvent) => {
+      if (
+        settingsPanelRef.current && !settingsPanelRef.current.contains(e.target as Node) &&
+        settingsBtnRef.current && !settingsBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowSettings(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [showSettings]);
 
   // After any explicit seek, freeze the displayed time for ~700 ms.
   // This prevents two classes of flash:
@@ -252,7 +278,7 @@ export default function PlayerPage() {
   const isVideo = !!episode.videoUrl;
 
   return (
-    <div className="flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
+    <div className="relative flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
       {/* Top nav — auto-hides while playing */}
       <div
         className={`flex items-center justify-between px-4 h-14 border-b border-[#1e2330] shrink-0 transition-all duration-300 overflow-hidden ${
@@ -278,12 +304,69 @@ export default function PlayerPage() {
             </p>
           )}
         </div>
-        <button className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+        <button
+          ref={settingsBtnRef}
+          className={`w-9 h-9 flex items-center justify-center transition-colors rounded-lg hover:bg-white/5 ${
+            showSettings ? 'text-accent' : 'text-slate-400 hover:text-white'
+          }`}
+          onClick={() => setShowSettings((v) => !v)}
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
           </svg>
         </button>
       </div>
+
+      {/* Settings panel — floats below the nav, outside overflow-hidden */}
+      {showSettings && (
+        <div
+          ref={settingsPanelRef}
+          className="absolute top-14 right-4 z-50 bg-[#1a1f2e] border border-[#2a3348] rounded-2xl shadow-2xl p-4 min-w-[192px]"
+        >
+          {/* Font size */}
+          <p className="text-xs text-muted mb-2 font-medium tracking-wide">字体大小</p>
+          <div className="flex gap-2 mb-4">
+            {([
+              { key: 'sm', label: '小', cls: 'text-sm' },
+              { key: 'base', label: '中', cls: 'text-base' },
+              { key: 'lg', label: '大', cls: 'text-lg' },
+            ] as { key: FontSize; label: string; cls: string }[]).map(({ key, label, cls }) => (
+              <button
+                key={key}
+                onClick={() => setFontSize(key)}
+                className={`flex-1 py-2 rounded-xl border transition-colors ${cls} ${
+                  fontSize === key
+                    ? 'bg-accent/20 border-accent/50 text-accent'
+                    : 'border-[#2a3348] text-slate-400 hover:text-white hover:border-slate-500'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Theme */}
+          <p className="text-xs text-muted mb-2 font-medium tracking-wide">主题</p>
+          <div className="flex gap-2">
+            {([
+              { key: 'night', label: '夜间' },
+              { key: 'day', label: '日间' },
+            ] as { key: 'night' | 'day'; label: string }[]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setTheme(key)}
+                className={`flex-1 py-2 rounded-xl border text-sm transition-colors ${
+                  theme === key
+                    ? 'bg-accent/20 border-accent/50 text-accent'
+                    : 'border-[#2a3348] text-slate-400 hover:text-white hover:border-slate-500'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Video player (video mode only) */}
       {isVideo && episode.videoUrl && (
@@ -316,10 +399,10 @@ export default function PlayerPage() {
       <TranscriptView
         episode={episode}
         currentTime={currentTime}
-        isPlaying={isPlaying}
         onSeek={handleSeek}
         onPlayPause={handlePlayPause}
         onTap={handleTranscriptTap}
+        fontSize={fontSize}
       />
 
       {/* Audio controls */}

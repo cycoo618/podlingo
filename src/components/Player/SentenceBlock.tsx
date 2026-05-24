@@ -1,9 +1,22 @@
 import type { Sentence, SentenceStatus, WordEntry } from '../../types';
+import type { FontSize } from './TranscriptView';
 
 const STATUS_STYLES: Record<SentenceStatus, string> = {
   past: 'opacity-25',
   active: 'opacity-100',
   upcoming: 'opacity-40',
+};
+
+const EN_SIZES: Record<FontSize, string> = {
+  sm: 'text-sm',
+  base: 'text-base',
+  lg: 'text-lg',
+};
+
+const CN_SIZES: Record<FontSize, string> = {
+  sm: 'text-xs',
+  base: 'text-sm',
+  lg: 'text-base',
 };
 
 interface SentenceBlockProps {
@@ -12,6 +25,7 @@ interface SentenceBlockProps {
   activeWordIndex: number;
   onWordClick: (wordText: string, entry: WordEntry | undefined, rect: DOMRect) => void;
   onSentenceClick: (startTime: number) => void;
+  fontSize?: FontSize;
 }
 
 export default function SentenceBlock({
@@ -20,6 +34,7 @@ export default function SentenceBlock({
   activeWordIndex,
   onWordClick,
   onSentenceClick,
+  fontSize = 'base',
 }: SentenceBlockProps) {
   return (
     <div
@@ -38,7 +53,7 @@ export default function SentenceBlock({
 
       <div className="flex-1 space-y-1.5">
         {/* English line */}
-        <p className="text-base leading-relaxed text-slate-200 select-none">
+        <p className={`${EN_SIZES[fontSize]} leading-relaxed text-slate-200 select-none`}>
           {sentence.words.map((word, i) => {
             const isActiveWord = status === 'active' && i === activeWordIndex;
             const hasEntry = !!word.entry;
@@ -49,9 +64,7 @@ export default function SentenceBlock({
               <span
                 key={i}
                 className={`inline transition-colors duration-150 rounded-sm ${
-                  isActiveWord
-                    ? 'bg-highlight/25 text-highlight'
-                    : ''
+                  isActiveWord ? 'bg-highlight/25 text-highlight' : ''
                 } ${
                   hasEntry
                     ? 'cursor-pointer hover:text-accent hover:underline decoration-accent/50 underline-offset-2'
@@ -78,9 +91,9 @@ export default function SentenceBlock({
           })}
         </p>
 
-        {/* Chinese translation — no highlighting */}
+        {/* Chinese translation */}
         <p
-          className="text-sm leading-relaxed text-slate-400 font-light"
+          className={`${CN_SIZES[fontSize]} leading-relaxed text-slate-400 font-light`}
           style={{ fontFamily: "'Noto Sans SC', sans-serif" }}
         >
           {sentence.cnText}
