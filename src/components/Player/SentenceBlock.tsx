@@ -10,8 +10,8 @@ interface SentenceBlockProps {
   sentence: Sentence;
   status: SentenceStatus;
   activeWordIndex: number;
-  onWordClick: (wordText: string, entry: WordEntry | undefined, rect: DOMRect, wordStartTime?: number) => void;
-  onSeek: (time: number) => void;
+  onWordClick: (wordText: string, entry: WordEntry | undefined, rect: DOMRect) => void;
+  onSentenceClick: (startTime: number) => void;
 }
 
 export default function SentenceBlock({
@@ -19,14 +19,14 @@ export default function SentenceBlock({
   status,
   activeWordIndex,
   onWordClick,
-  onSeek,
+  onSentenceClick,
 }: SentenceBlockProps) {
   return (
     <div
       className={`group relative flex gap-3 transition-opacity duration-300 ${STATUS_STYLES[status]}`}
       onClick={(e) => {
         e.stopPropagation();
-        onSeek(sentence.startTime);
+        onSentenceClick(sentence.startTime);
       }}
     >
       {/* Active indicator */}
@@ -67,7 +67,6 @@ export default function SentenceBlock({
                           word.text,
                           word.entry,
                           (e.target as HTMLElement).getBoundingClientRect(),
-                          word.startTime,
                         );
                       }
                     : undefined

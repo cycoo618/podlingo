@@ -50,7 +50,7 @@ function cleanWord(text: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function TranscriptView({ episode, currentTime, isPlaying, onSeek, onPlayPause, onTap }: TranscriptViewProps) {
+export default function TranscriptView({ episode, currentTime, onSeek, onPlayPause, onTap }: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -112,14 +112,8 @@ export default function TranscriptView({ episode, currentTime, isPlaying, onSeek
     wordText: string,
     preloadedEntry: WordEntry | undefined,
     rect: DOMRect,
-    wordStartTime?: number,
   ) => {
-    // Always seek to the word's position in the video
-    if (wordStartTime !== undefined) onSeek(wordStartTime);
-
-    // Dictionary lookup only while playing
-    if (!isPlaying) return;
-
+    // Word clicks: dictionary lookup only, no seek, works whether playing or paused
     const key = cleanWord(wordText);
     if (!key) return;
 
@@ -166,13 +160,26 @@ export default function TranscriptView({ episode, currentTime, isPlaying, onSeek
         activeWordRef.current = null;
       }
     }
-  }, [isPlaying, onSeek, closeBubble]);
+  }, [closeBubble]);
 
+  // Sentence blank-area click: close bubble if open, else seek to sentence
+  const handleSentenceClick = useCallback((startTime: number) => {
+    if (bubble) {
+      closeBubble();
+    } else {
+      onSeek(startTime);
+    }
+  }, [bubble, closeBubble, onSeek]);
+
+  // Container (outside sentences) click: close bubble if open, else play/pause
   const handleContainerClick = useCallback(() => {
-    closeBubble();
-    onPlayPause();
-    onTap?.();
-  }, [closeBubble, onPlayPause, onTap]);
+    if (bubble) {
+      closeBubble();
+    } else {
+      onPlayPause();
+      onTap?.();
+    }
+  }, [bubble, closeBubble, onPlayPause, onTap]);
 
   return (
     <div className="relative flex-1 overflow-hidden">
@@ -195,7 +202,7 @@ export default function TranscriptView({ episode, currentTime, isPlaying, onSeek
                 status={status}
                 activeWordIndex={activeWordIdx}
                 onWordClick={handleWordClick}
-                onSeek={onSeek}
+                onSentenceClick={handleSentenceClick}
               />
             </div>
           );

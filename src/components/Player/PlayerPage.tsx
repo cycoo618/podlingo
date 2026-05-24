@@ -21,6 +21,27 @@ export default function PlayerPage() {
   const [navVisible, setNavVisible] = useState(true);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Seek floor: after an explicit seek, ignore timeUpdate events that are
+  // below the target (YouTube keyframe lands slightly before sentence.startTime)
+  const seekFloorRef = useRef<number | null>(null);
+  const seekFloorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTimeUpdate = useCallback((time: number) => {
+    if (seekFloorRef.current !== null) {
+      if (time >= seekFloorRef.current - 0.05) {
+        // Media has caught up — release the floor
+        seekFloorRef.current = null;
+        if (seekFloorTimerRef.current) {
+          clearTimeout(seekFloorTimerRef.current);
+          seekFloorTimerRef.current = null;
+        }
+      } else {
+        return; // still behind the seek point, ignore
+      }
+    }
+    setCurrentTime(time);
+  }, []);
+
   // Simulated time ticker for demo (when no real audio/video)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -101,18 +122,30 @@ export default function PlayerPage() {
     }
   }, [episode?.videoUrl, isPlaying, startTicker, stopTicker]);
 
+  const setSeekFloor = useCallback((time: number) => {
+    seekFloorRef.current = time;
+    if (seekFloorTimerRef.current) clearTimeout(seekFloorTimerRef.current);
+    // Safety release after 2s in case media never reaches the point
+    seekFloorTimerRef.current = setTimeout(() => {
+      seekFloorRef.current = null;
+      seekFloorTimerRef.current = null;
+    }, 2000);
+  }, []);
+
   const handleSeek = useCallback((time: number) => {
     setCurrentTime(time);
+    setSeekFloor(time);
     if (episode?.videoUrl) {
       videoRef.current?.seekTo(time);
     } else if (audioRef.current) {
       audioRef.current.currentTime = time;
     }
-  }, [episode?.videoUrl]);
+  }, [episode?.videoUrl, setSeekFloor]);
 
   const handleSkip = useCallback((delta: number) => {
     setCurrentTime((t) => {
       const next = Math.max(0, Math.min(t + delta, duration));
+      setSeekFloor(next);
       if (episode?.videoUrl) {
         videoRef.current?.seekTo(next);
       } else if (audioRef.current) {
@@ -120,7 +153,7 @@ export default function PlayerPage() {
       }
       return next;
     });
-  }, [duration, episode?.videoUrl]);
+  }, [duration, episode?.videoUrl, setSeekFloor]);
 
   const handleRateChange = useCallback((rate: number) => {
     setPlaybackRate(rate);
@@ -218,7 +251,7 @@ export default function PlayerPage() {
           <VideoPlayer
             ref={videoRef}
             src={episode.videoUrl}
-            onTimeUpdate={setCurrentTime}
+            onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={setDuration}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -231,7 +264,7 @@ export default function PlayerPage() {
         <audio
           ref={audioRef}
           src={episode.audioUrl}
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
