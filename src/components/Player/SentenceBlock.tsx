@@ -48,9 +48,9 @@ export default function SentenceBlock({
             return (
               <span
                 key={i}
-                className={`inline transition-all duration-150 rounded-sm ${
+                className={`inline transition-colors duration-150 rounded-sm ${
                   isActiveWord
-                    ? 'bg-highlight/30 text-highlight font-semibold px-0.5'
+                    ? 'bg-highlight/25 text-highlight'
                     : ''
                 } ${
                   hasEntry
