@@ -19,7 +19,12 @@ export default function PlayerPage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(episode?.duration ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1.0);
+
+  // Persist playback rate across sessions
+  const [playbackRate, setPlaybackRate] = useState<number>(() => {
+    try { return parseFloat(localStorage.getItem('podlingo_rate') ?? '1') || 1; }
+    catch { return 1; }
+  });
   const [fontSize, setFontSize] = useState<FontSize>('base');
   const [theme, setTheme] = useState<'night' | 'day'>('night');
   const [showSettings, setShowSettings] = useState(false);
@@ -178,6 +183,7 @@ export default function PlayerPage() {
 
   const handleRateChange = useCallback((rate: number) => {
     setPlaybackRate(rate);
+    try { localStorage.setItem('podlingo_rate', String(rate)); } catch { /* ignore */ }
     if (episode?.videoUrl) {
       videoRef.current?.setPlaybackRate(rate);
       return;
@@ -260,6 +266,10 @@ export default function PlayerPage() {
     setDuration(dur);
     if (!didAutoResumeRef.current) {
       didAutoResumeRef.current = true;
+      // Restore saved playback rate (YouTube player resets to 1× on load)
+      if (playbackRate !== 1) {
+        setTimeout(() => videoRef.current?.setPlaybackRate(playbackRate), 300);
+      }
       const saved = getSavedPosition();
       if (saved > 1) {
         // Small delay so VideoPlayer's internal state settles before seeking
@@ -267,7 +277,7 @@ export default function PlayerPage() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getSavedPosition]);
+  }, [getSavedPosition, playbackRate]);
 
   // ── Save progress every 5s while playing ─────────────────────────────────
   useEffect(() => {

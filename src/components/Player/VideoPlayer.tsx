@@ -170,7 +170,7 @@ const VideoPlayer = forwardRef<VideoHandle, VideoPlayerProps>(
     // ── YouTube branch ───────────────────────────────────────────────────────
     if (src.includes('youtube.com/embed')) {
       return (
-        <div className="w-full bg-black" style={{ aspectRatio: '16/9', minHeight: '33.33vh', maxHeight: '40vh' }}>
+        <div className="w-full bg-black" style={{ aspectRatio: '16/9' }}>
           <iframe
             ref={iframeRef}
             src={src}

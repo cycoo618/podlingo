@@ -218,6 +218,7 @@ export default function TranscriptView({
           entry={bubble.entry}
           anchorRect={bubble.rect}
           onClose={closeBubble}
+          episodeId={episode.id}
         />
       )}
     </div>
