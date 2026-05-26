@@ -86,6 +86,10 @@ export default function SentenceBlock({
                     : undefined
                 }
               >
+                {/* Some sources (WhisperX alignment) strip leading spaces from
+                    word tokens. Add a space before non-first words that lack one
+                    so ep1 (" Joe") and ep2 ("Joe") both render correctly. */}
+                {i > 0 && !word.text.startsWith(' ') ? ' ' : ''}
                 {normalizeWord(word.text)}
               </span>
             );
