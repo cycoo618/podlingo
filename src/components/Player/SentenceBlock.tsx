@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { Sentence, SentenceStatus, WordEntry } from '../../types';
 import type { FontSize } from './TranscriptView';
 import { normalizeWord } from '../../utils/normalizeWord';
@@ -58,40 +59,45 @@ export default function SentenceBlock({
           {sentence.words.map((word, i) => {
             const isActiveWord = status === 'active' && i === activeWordIndex;
             const hasEntry = !!word.entry;
-            const cleanedLen = word.text.trim().replace(/[^a-zA-Z'-]/g, '').length;
+            // Always work with the trimmed core — spaces are handled separately below
+            const core = word.text.trim();
+            const displayText = normalizeWord(core);
+            const cleanedLen = core.replace(/[^a-zA-Z'-]/g, '').length;
             const isClickable = cleanedLen >= 2;
 
             return (
-              <span
-                key={i}
-                className={`inline transition-colors duration-150 rounded-sm ${
-                  isActiveWord ? 'bg-highlight/25 text-highlight' : ''
-                } ${
-                  hasEntry
-                    ? 'cursor-pointer hover:text-accent hover:underline decoration-accent/50 underline-offset-2'
-                    : isClickable
-                    ? 'cursor-pointer hover:text-slate-100'
-                    : ''
-                }`}
-                onClick={
-                  isClickable
-                    ? (e) => {
-                        e.stopPropagation();
-                        onWordClick(
-                          normalizeWord(word.text),
-                          word.entry,
-                          (e.target as HTMLElement).getBoundingClientRect(),
-                        );
-                      }
-                    : undefined
-                }
-              >
-                {/* Some sources (WhisperX alignment) strip leading spaces from
-                    word tokens. Add a space before non-first words that lack one
-                    so ep1 (" Joe") and ep2 ("Joe") both render correctly. */}
-                {i > 0 && !word.text.startsWith(' ') ? ' ' : ''}
-                {normalizeWord(word.text)}
-              </span>
+              // Fragment so we can place the inter-word space OUTSIDE the
+              // highlighted span. This prevents the background box from
+              // including a leading space (which caused visible gaps in JRE
+              // where WhisperX strips leading whitespace from word tokens).
+              <Fragment key={i}>
+                {i > 0 && ' '}
+                <span
+                  className={`inline transition-colors duration-150 rounded-sm ${
+                    isActiveWord ? 'bg-highlight/25 text-highlight' : ''
+                  } ${
+                    hasEntry
+                      ? 'cursor-pointer hover:text-accent hover:underline decoration-accent/50 underline-offset-2'
+                      : isClickable
+                      ? 'cursor-pointer hover:text-slate-100'
+                      : ''
+                  }`}
+                  onClick={
+                    isClickable
+                      ? (e) => {
+                          e.stopPropagation();
+                          onWordClick(
+                            displayText,
+                            word.entry,
+                            (e.target as HTMLElement).getBoundingClientRect(),
+                          );
+                        }
+                      : undefined
+                  }
+                >
+                  {displayText}
+                </span>
+              </Fragment>
             );
           })}
         </p>
