@@ -2,25 +2,35 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function LoginPage() {
-  const { signInWithGoogle, loading } = useAuth();
-  const navigate = useNavigate();
-  const [error, setError] = useState('');
-  const [signingIn, setSigningIn] = useState(false);
+type Mode = 'login' | 'register';
 
-  const handleGoogle = async () => {
-    setError('');
-    setSigningIn(true);
-    try {
-      await signInWithGoogle();
-      navigate('/', { replace: true });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Login failed';
-      setError(msg);
-    } finally {
-      setSigningIn(false);
-    }
-  };
+const FIREBASE_ERRORS: Record<string, string> = {
+  'auth/user-not-found':       '邮箱未注册，请先创建账号',
+  'auth/wrong-password':       '密码错误，请重试',
+  'auth/invalid-credential':   '邮箱或密码错误',
+  'auth/email-already-in-use': '该邮箱已注册，请直接登录',
+  'auth/weak-password':        '密码至少需要 6 位',
+  'auth/invalid-email':        '请输入有效的邮箱地址',
+  'auth/too-many-requests':    '尝试次数过多，请稍后再试',
+};
+
+function friendlyError(e: unknown): string {
+  if (e && typeof e === 'object' && 'code' in e) {
+    return FIREBASE_ERRORS[(e as { code: string }).code] ?? '发生错误，请重试';
+  }
+  return '发生错误，请重试';
+}
+
+export default function LoginPage() {
+  const { signInWithEmail, createAccountWithEmail, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const [mode, setMode]           = useState<Mode>('login');
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [name, setName]           = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]         = useState('');
 
   if (loading) {
     return (
@@ -29,6 +39,30 @@ export default function LoginPage() {
       </div>
     );
   }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      if (mode === 'login') {
+        await signInWithEmail(email, password);
+      } else {
+        if (!name.trim()) { setError('请输入名字'); setSubmitting(false); return; }
+        await createAccountWithEmail(email, password, name.trim());
+      }
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const switchMode = () => {
+    setMode(m => m === 'login' ? 'register' : 'login');
+    setError('');
+  };
 
   return (
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-6">
@@ -43,36 +77,94 @@ export default function LoginPage() {
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-sm bg-surface-2 rounded-3xl p-8 border" style={{ borderColor: 'var(--clr-border3)' }}>
-        <h1 className="text-xl font-bold text-white mb-1">Welcome back</h1>
-        <p className="text-sm text-muted mb-8">Sign in to access your episodes and vocabulary.</p>
+      <div
+        className="w-full max-w-sm bg-surface-2 rounded-3xl p-8 border"
+        style={{ borderColor: 'var(--clr-border3)' }}
+      >
+        <h1 className="text-xl font-bold text-white mb-1">
+          {mode === 'login' ? 'Welcome back' : 'Create account'}
+        </h1>
+        <p className="text-sm text-muted mb-6">
+          {mode === 'login'
+            ? 'Sign in to access your episodes and vocabulary.'
+            : 'Start learning with real podcasts.'}
+        </p>
 
-        <button
-          onClick={handleGoogle}
-          disabled={signingIn}
-          className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-medium text-sm py-3.5 rounded-2xl hover:bg-gray-100 active:scale-[0.98] transition-all disabled:opacity-60"
-        >
-          {signingIn ? (
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Name — register only */}
+          {mode === 'register' && (
+            <div>
+              <label className="block text-xs text-muted mb-1.5">Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Your name"
+                required
+                className="w-full bg-bg border rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-accent/60 transition-colors"
+                style={{ borderColor: 'var(--clr-border3)' }}
+              />
+            </div>
           )}
-          {signingIn ? 'Signing in…' : 'Continue with Google'}
-        </button>
 
-        {error && (
-          <p className="text-xs text-red-400 mt-4 text-center">{error}</p>
-        )}
+          {/* Email */}
+          <div>
+            <label className="block text-xs text-muted mb-1.5">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              autoComplete="email"
+              className="w-full bg-bg border rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-accent/60 transition-colors"
+              style={{ borderColor: 'var(--clr-border3)' }}
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-xs text-muted mb-1.5">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder={mode === 'register' ? 'At least 6 characters' : '••••••••'}
+              required
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              className="w-full bg-bg border rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-accent/60 transition-colors"
+              style={{ borderColor: 'var(--clr-border3)' }}
+            />
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p className="text-xs text-red-400 pt-1">{error}</p>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-accent text-bg font-semibold text-sm py-3.5 rounded-2xl hover:bg-accent/90 active:scale-[0.98] transition-all disabled:opacity-60 mt-2"
+          >
+            {submitting
+              ? (mode === 'login' ? 'Signing in…' : 'Creating account…')
+              : (mode === 'login' ? 'Sign in' : 'Create account')}
+          </button>
+        </form>
+
+        {/* Mode toggle */}
+        <p className="text-sm text-muted text-center mt-5">
+          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+          <button
+            onClick={switchMode}
+            className="text-accent hover:text-accent/80 font-medium transition-colors"
+          >
+            {mode === 'login' ? 'Sign up' : 'Sign in'}
+          </button>
+        </p>
       </div>
-
-      <p className="text-xs text-muted mt-6 text-center max-w-xs">
-        By signing in you agree to our terms of service.
-      </p>
     </div>
   );
 }

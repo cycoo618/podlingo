@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
-  GoogleAuthProvider,
-  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut as fbSignOut,
   onAuthStateChanged,
   type User,
@@ -13,11 +14,28 @@ interface AuthState {
   user: User | null;
   premium: boolean;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  createAccountWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
+
+async function ensureUserDoc(u: User) {
+  const ref = doc(db, 'users', u.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      email:       u.email,
+      displayName: u.displayName ?? u.email,
+      photoURL:    u.photoURL ?? null,
+      premium:     false,
+      createdAt:   serverTimestamp(),
+    });
+    return false; // not premium
+  }
+  return snap.data()?.premium === true;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
@@ -28,22 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        // Ensure user doc exists, then read premium flag
-        const ref = doc(db, 'users', u.uid);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          // First login — create user record
-          await setDoc(ref, {
-            email:       u.email,
-            displayName: u.displayName,
-            photoURL:    u.photoURL,
-            premium:     false,
-            createdAt:   serverTimestamp(),
-          });
-          setPremium(false);
-        } else {
-          setPremium(snap.data()?.premium === true);
-        }
+        const isPremium = await ensureUserDoc(u);
+        setPremium(isPremium);
       } else {
         setPremium(false);
       }
@@ -52,9 +56,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+  const signInWithEmail = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged handles the rest
+  };
+
+  const createAccountWithEmail = async (
+    email: string,
+    password: string,
+    displayName: string,
+  ) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    // Set displayName immediately so ensureUserDoc picks it up
+    await updateProfile(cred.user, { displayName });
+    // Force-refresh the user object so onAuthStateChanged sees the new displayName
+    await cred.user.reload();
   };
 
   const signOut = async () => {
@@ -62,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, premium, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, premium, loading, signInWithEmail, createAccountWithEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );
