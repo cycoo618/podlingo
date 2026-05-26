@@ -34,12 +34,8 @@ export default function DiscoverPage() {
                   <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
-              {/* Avatar + sign out */}
-              <button
-                onClick={signOut}
-                className="flex items-center gap-1.5 rounded-xl hover:bg-white/5 px-2 py-1 transition-colors"
-                title="Sign out"
-              >
+              {/* Avatar */}
+              <div className="flex items-center gap-1.5">
                 {user.photoURL ? (
                   <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full" />
                 ) : (
@@ -50,6 +46,13 @@ export default function DiscoverPage() {
                 {premium && (
                   <span className="text-[10px] text-accent font-semibold">PRO</span>
                 )}
+              </div>
+              {/* Explicit sign-out button */}
+              <button
+                onClick={signOut}
+                className="text-xs text-slate-500 hover:text-red-400 transition-colors px-1 py-1"
+              >
+                退出
               </button>
             </div>
           ) : (
