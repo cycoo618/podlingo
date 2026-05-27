@@ -31,6 +31,10 @@ export default function PlayerPage() {
   const [chapterEnded, setChapterEnded] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Set to true when user dismisses the chapter-end overlay so the detection
+  // effect won't immediately re-trigger while currentTime is still at chapterEnd.
+  // Reset to false whenever a new chapter begins (in selectChapter).
+  const chapterEndAckedRef = useRef(false);
 
   // Snap chapter boundaries to natural sentence-pause break points
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,6 +112,7 @@ export default function PlayerPage() {
   const selectChapter = useCallback((idx: number) => {
     const ch = chapters[idx];
     if (!ch) return;
+    chapterEndAckedRef.current = false;
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
@@ -133,7 +138,7 @@ export default function PlayerPage() {
 
   // Detect end of current chapter
   useEffect(() => {
-    if (selectedChapterIdx === null || chapterEnded || !selectedChapter) return;
+    if (selectedChapterIdx === null || chapterEnded || !selectedChapter || chapterEndAckedRef.current) return;
     if (currentTime >= chapterEnd - 0.3) {
       setChapterEnded(true);
       if (episode?.videoUrl) videoRef.current?.pause();
@@ -432,6 +437,7 @@ export default function PlayerPage() {
                 </button>
                 <button
                   onClick={() => {
+                    chapterEndAckedRef.current = true;
                     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
                     setChapterEnded(false);
                   }}
@@ -448,7 +454,7 @@ export default function PlayerPage() {
                 </div>
                 <p className="text-sm text-muted leading-relaxed">后续小节需要 PRO 账号<br/>升级即可解锁全集内容</p>
                 <button
-                  onClick={() => { setChapterEnded(false); }}
+                  onClick={() => { chapterEndAckedRef.current = true; setChapterEnded(false); }}
                   className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
                 >
                   知道了
@@ -558,6 +564,19 @@ export default function PlayerPage() {
                 {label}
               </button>
             ))}
+          </div>
+
+          {/* Vocab link */}
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--clr-border3)' }}>
+            <button
+              onClick={() => { navigate('/vocab'); setShowSettings(false); }}
+              className="w-full flex items-center gap-2.5 py-1.5 text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+              单词本
+            </button>
           </div>
         </div>
       )}

@@ -12,14 +12,10 @@ export const mockEpisodes: Episode[] = [
     duration: 2215.9,
     language: 'en-zh',
     chapters: [
-      { id: 'c1', title: 'Post-Olympic Depression', description: 'There\'s a thing called post-Olympic depression — and it doesn\'t care if you won.', startTime: 0, endTime: 300 },
-      { id: 'c2', title: 'The Making of a Skier', description: 'From a casual ski trip to World Cups — the role of mentorship and early failure.', startTime: 300, endTime: 600 },
-      { id: 'c3', title: 'No Traditional Path', description: 'On skipping the conventional roadmap and charting your own course.', startTime: 600, endTime: 900 },
-      { id: 'c4', title: 'The Olympics Decision', description: 'Choosing to represent China at age 14 — and what that actually meant.', startTime: 900, endTime: 1200 },
-      { id: 'c5', title: 'Growing Up Biracial', description: 'Being authentically American and Chinese — without having to choose between the two.', startTime: 1200, endTime: 1500 },
-      { id: 'c6', title: 'Money & Optimization', description: 'On financial independence, investing in yourself, and the real meaning of productivity.', startTime: 1500, endTime: 1800 },
-      { id: 'c7', title: 'Handling Hate', description: 'Death threats, male intimidation, and why confidence isn\'t about ignoring the noise.', startTime: 1800, endTime: 2040 },
-      { id: 'c8', title: 'Burnout & Recovery', description: 'The anxiety after the Olympics, learning to rest, and what comes next.', startTime: 2040, endTime: 2220 },
+      { id: 'c1', title: 'Early Life & Olympic Dream', description: 'From a casual ski trip to World Cups — the emotional cost of peak performance and what post-Olympic depression really feels like.', startTime: 0, endTime: 600 },
+      { id: 'c2', title: 'The Olympic Choice', description: 'Choosing to represent China at 14, skipping the conventional roadmap, and what that decision actually meant.', startTime: 600, endTime: 1200 },
+      { id: 'c3', title: 'Identity & Success', description: 'Growing up biracial, financial independence, and the real meaning of optimization and productivity.', startTime: 1200, endTime: 1800 },
+      { id: 'c4', title: 'Handling Pressure', description: 'Death threats, male intimidation, burnout — and learning to rest after the Olympics.', startTime: 1800, endTime: 2220 },
     ],
     transcript: [
       {
