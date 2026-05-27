@@ -50,6 +50,7 @@ export interface Episode {
   language: 'en-zh' | 'zh-en';
   transcript: Sentence[];
   chapters?: Chapter[];
+  premium?: boolean;   // true = requires premium account to play
 }
 
 export type SentenceStatus = 'past' | 'active' | 'upcoming';
