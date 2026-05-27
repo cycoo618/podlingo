@@ -19,7 +19,7 @@ export default function EpisodeCard({ episode }: EpisodeCardProps) {
   return (
     <button
       className="w-full text-left bg-[#161920] hover:bg-[#1a1f2e] border border-[#1e2330] rounded-2xl overflow-hidden transition-all duration-200 hover:border-accent/30 hover:shadow-lg hover:shadow-accent/5 group"
-      onClick={() => locked ? navigate('/upgrade') : navigate(`/player/${episode.id}`)}
+      onClick={() => navigate(`/player/${episode.id}`)}
     >
       <div className="flex gap-4 p-4">
         {/* Cover */}

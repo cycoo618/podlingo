@@ -22,6 +22,11 @@ export default function PlayerPage() {
   const [duration, setDuration] = useState(episode?.duration ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  // Preview mode: non-premium users can listen to first 60 seconds of premium episodes
+  const isPreview = !!episode?.premium && !premium;
+  const PREVIEW_LIMIT = 60; // seconds
+  const [previewEnded, setPreviewEnded] = useState(false);
+
   // Persist playback rate across sessions
   const [playbackRate, setPlaybackRate] = useState<number>(() => {
     try { return parseFloat(localStorage.getItem('podlingo_rate') ?? '1') || 1; }
@@ -70,6 +75,17 @@ export default function PlayerPage() {
     if (seekFreezeRef.current) return;   // frozen — ignore all media updates
     setCurrentTime(time);
   }, []);
+
+  // Enforce preview limit
+  useEffect(() => {
+    if (!isPreview || previewEnded) return;
+    if (currentTime >= PREVIEW_LIMIT) {
+      setPreviewEnded(true);
+      if (episode?.videoUrl) videoRef.current?.pause();
+      else if (audioRef.current) audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [currentTime, isPreview, previewEnded, episode?.videoUrl]);
 
   const activateSeekFreeze = useCallback(() => {
     seekFreezeRef.current = true;
@@ -301,33 +317,31 @@ export default function PlayerPage() {
     );
   }
 
-  if (episode.premium && !premium) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-bg px-8 text-center gap-5">
-        <div className="w-16 h-16 rounded-2xl bg-amber-400/10 flex items-center justify-center">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-        </div>
-        <div>
-          <p className="text-white font-bold text-lg mb-1">Premium Content</p>
-          <p className="text-muted text-sm leading-relaxed">This episode requires a premium account.<br/>Contact us to upgrade.</p>
-        </div>
-        <button
-          onClick={() => navigate('/')}
-          className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
-        >
-          Back to Discover
-        </button>
-      </div>
-    );
-  }
-
   const isVideo = !!episode.videoUrl;
 
   return (
     <div className="relative flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
+      {/* Preview-ended overlay */}
+      {previewEnded && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-bg/95 backdrop-blur-sm px-8 text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-amber-400/10 flex items-center justify-center">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-white font-bold text-lg mb-1">试听结束</p>
+            <p className="text-muted text-sm leading-relaxed">免费试听 1 分钟已结束。<br/>升级 PRO 账号即可解锁完整内容。</p>
+          </div>
+          <button
+            onClick={() => navigate('/')}
+            className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
+          >
+            返回首页
+          </button>
+        </div>
+      )}
       {/* Top nav — auto-hides while playing */}
       <div
         className={`flex items-center justify-between px-4 h-14 border-b border-border shrink-0 transition-all duration-300 overflow-hidden ${
