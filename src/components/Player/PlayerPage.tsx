@@ -1,5 +1,6 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { snapChaptersToBoundaries } from '../../utils/snapChapters';
 import { mockEpisodes } from '../../data/mockEpisodes';
 import TranscriptView from './TranscriptView';
 import type { FontSize } from './TranscriptView';
@@ -23,15 +24,18 @@ export default function PlayerPage() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   // ── Chapter mode ──────────────────────────────────────────────────────────
-  const chapters = episode?.chapters ?? [];
-  const hasChapters = chapters.length > 1;
-  // null = chapter selection screen; number = index of playing chapter
-  const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(
-    hasChapters ? null : 0,
-  );
+  const rawChapters = episode?.chapters ?? [];
+  const hasChapters = rawChapters.length > 1;
+  // Start on chapter 0 directly (no selection screen)
+  const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(0);
   const [chapterEnded, setChapterEnded] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showChapterSheet, setShowChapterSheet] = useState(false);
+
+  // Snap chapter boundaries to natural sentence-pause break points
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const chapters = useMemo(() => snapChaptersToBoundaries(rawChapters, episode?.transcript ?? []), [episode?.id]);
 
   // Derived chapter values (safe when no chapters: fall back to full episode)
   const selectedChapter = selectedChapterIdx !== null ? (chapters[selectedChapterIdx] ?? null) : null;
@@ -392,76 +396,8 @@ export default function PlayerPage() {
   const isVideo = !!episode.videoUrl;
 
   // Chapter duration string for display
-  const fmtMin = (s: number) => `${Math.round(s / 60)} min`;
-
   return (
     <div className="relative flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
-
-      {/* ── Chapter selection overlay ──────────────────────────────────────── */}
-      {selectedChapterIdx === null && hasChapters && (
-        <div className="absolute inset-0 z-40 bg-bg flex flex-col">
-          {/* Header */}
-          <div className="flex items-center px-4 h-14 border-b border-border shrink-0">
-            <button
-              className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
-              onClick={() => navigate('/')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <div className="flex-1 text-center px-2">
-              <p className="text-xs text-muted truncate">{episode.podcastName}</p>
-              <p className="text-sm font-medium text-slate-200 truncate max-w-[220px] mx-auto leading-tight">{episode.title}</p>
-            </div>
-            <div className="w-9" />
-          </div>
-          {/* Chapter list */}
-          <div className="flex-1 overflow-y-auto px-5 pt-4 pb-10 space-y-2.5">
-            <p className="text-xs text-muted uppercase tracking-wider mb-3">选择章节</p>
-            {chapters.map((ch, idx) => {
-              const locked = isChapterLocked(idx);
-              const dur = fmtMin(ch.endTime - ch.startTime);
-              return (
-                <button
-                  key={ch.id}
-                  onClick={() => { if (!locked) selectChapter(idx); }}
-                  className={`w-full text-left flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                    locked
-                      ? 'border-[#1e2330] bg-[#0d0f14] opacity-60 cursor-default'
-                      : 'border-[#1e2330] bg-[#161920] hover:border-accent/30 hover:bg-[#1a1f2e] active:scale-[0.99]'
-                  }`}
-                >
-                  {/* Index bubble */}
-                  <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${
-                    locked ? 'bg-amber-400/10 text-amber-500' : 'bg-accent/15 text-accent'
-                  }`}>
-                    {locked
-                      ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                      : <span>{idx + 1}</span>
-                    }
-                  </div>
-                  {/* Text */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-100 leading-snug">{ch.title}</p>
-                    {ch.description && (
-                      <p className="text-xs text-muted leading-relaxed mt-0.5 line-clamp-1">{ch.description}</p>
-                    )}
-                  </div>
-                  {/* Right side */}
-                  <div className="shrink-0 flex flex-col items-end gap-1">
-                    <span className="text-xs text-muted tabular-nums">{dur}</span>
-                    {locked
-                      ? <span className="text-[10px] bg-amber-400/15 text-amber-400 font-semibold px-1.5 py-0.5 rounded-md">PRO</span>
-                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-                    }
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ── Chapter-ended overlay ──────────────────────────────────────────── */}
       {chapterEnded && selectedChapterIdx !== null && (() => {
@@ -499,11 +435,11 @@ export default function PlayerPage() {
                   onClick={() => {
                     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
                     setChapterEnded(false);
-                    setSelectedChapterIdx(null);
+                    setShowChapterSheet(true);
                   }}
                   className="text-sm text-muted hover:text-white transition-colors"
                 >
-                  返回章节列表
+                  章节列表
                 </button>
               </div>
             ) : nextChapter && nextLocked ? (
@@ -514,10 +450,10 @@ export default function PlayerPage() {
                 </div>
                 <p className="text-sm text-muted leading-relaxed">后续章节需要 PRO 账号<br/>升级即可解锁全集内容</p>
                 <button
-                  onClick={() => { setChapterEnded(false); setSelectedChapterIdx(null); }}
+                  onClick={() => { setChapterEnded(false); setShowChapterSheet(true); }}
                   className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
                 >
-                  返回章节列表
+                  章节列表
                 </button>
               </div>
             ) : (
@@ -666,6 +602,69 @@ export default function PlayerPage() {
         fontSize={fontSize}
       />
 
+      {/* ── Chapter list sheet — slides in above AudioControls ─────────────── */}
+      {showChapterSheet && hasChapters && (
+        <div className="shrink-0 border-t border-border bg-[#0d1017] overflow-y-auto" style={{ maxHeight: '45dvh' }}>
+          {/* Sheet header */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 sticky top-0 bg-[#0d1017]">
+            <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">章节</p>
+            <button
+              onClick={() => setShowChapterSheet(false)}
+              className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          {/* Chapter rows */}
+          {chapters.map((ch, idx) => {
+            const isActive = idx === selectedChapterIdx;
+            const locked = isChapterLocked(idx);
+            const mins = Math.round((ch.endTime - ch.startTime) / 60);
+            return (
+              <button
+                key={ch.id}
+                onClick={() => {
+                  if (locked) return;
+                  selectChapter(idx);
+                  setShowChapterSheet(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 border-b border-border/40 transition-colors text-left ${
+                  isActive ? 'bg-accent/5' : locked ? 'opacity-50 cursor-default' : 'hover:bg-white/3 active:bg-white/5'
+                }`}
+              >
+                {/* Chapter indicator */}
+                <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                  isActive ? 'bg-accent text-bg' : locked ? 'bg-amber-400/15 text-amber-500' : 'bg-white/8 text-muted'
+                }`}>
+                  {locked
+                    ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    : idx + 1
+                  }
+                </div>
+                {/* Title */}
+                <p className={`flex-1 text-sm leading-snug ${isActive ? 'text-white font-semibold' : 'text-slate-300'}`}>
+                  {ch.title}
+                </p>
+                {/* Duration + active indicator */}
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className="text-xs text-muted tabular-nums">{mins}m</span>
+                  {isActive && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#6ee7b7">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  )}
+                  {locked && (
+                    <span className="text-[10px] bg-amber-400/15 text-amber-400 font-semibold px-1 py-0.5 rounded">PRO</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Audio controls */}
       <div className="shrink-0">
         <AudioControls
@@ -675,11 +674,12 @@ export default function PlayerPage() {
           isPlaying={isPlaying}
           playbackRate={playbackRate}
           chapters={hasChapters ? undefined : (episode.chapters ?? undefined)}
-          chapterLabel={selectedChapter ? `Part ${selectedChapterIdx! + 1} · ${selectedChapter.title}` : undefined}
+          chapterLabel={selectedChapter ? `${selectedChapterIdx! + 1}. ${selectedChapter.title}` : undefined}
           onPlayPause={handlePlayPause}
           onSeek={hasChapters ? (t) => handleSeek(chapterStart + t) : handleSeek}
           onSkip={handleSkip}
           onRateChange={handleRateChange}
+          onOpenChapterList={hasChapters ? () => setShowChapterSheet((v) => !v) : undefined}
         />
       </div>
     </div>

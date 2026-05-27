@@ -12,6 +12,8 @@ interface AudioControlsProps {
   chapters?: Chapter[];
   /** When set, replaces the episode title in the bottom bar (used for chapter label) */
   chapterLabel?: string;
+  /** When set, a chapter-list button appears next to the speed selector */
+  onOpenChapterList?: () => void;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (delta: number) => void;
@@ -32,6 +34,7 @@ export default function AudioControls({
   playbackRate,
   chapters,
   chapterLabel,
+  onOpenChapterList,
   onPlayPause,
   onSeek,
   onSkip,
@@ -149,6 +152,21 @@ export default function AudioControls({
               <text x="12" y="16" textAnchor="middle" fontSize="6" fontWeight="bold" fill="currentColor">10</text>
             </svg>
           </button>
+
+          {/* Chapter list button */}
+          {onOpenChapterList && (
+            <button
+              onClick={onOpenChapterList}
+              className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+              title="章节列表"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="15" y2="12"/>
+                <line x1="3" y1="18" x2="10" y2="18"/>
+              </svg>
+            </button>
+          )}
 
           {/* Speed button with upward popover */}
           <div className="relative">
