@@ -10,6 +10,8 @@ interface AudioControlsProps {
   isPlaying: boolean;
   playbackRate: number;
   chapters?: Chapter[];
+  /** When set, replaces the episode title in the bottom bar (used for chapter label) */
+  chapterLabel?: string;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (delta: number) => void;
@@ -29,6 +31,7 @@ export default function AudioControls({
   isPlaying,
   playbackRate,
   chapters,
+  chapterLabel,
   onPlayPause,
   onSeek,
   onSkip,
@@ -103,7 +106,7 @@ export default function AudioControls({
           <div className="min-w-0">
             <p className="text-xs text-muted truncate">{episode.podcastName}</p>
             <p className="text-sm text-slate-200 font-medium truncate leading-tight mt-0.5">
-              {episode.title}
+              {chapterLabel ?? episode.title}
             </p>
           </div>
         </div>

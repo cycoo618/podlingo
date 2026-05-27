@@ -22,10 +22,26 @@ export default function PlayerPage() {
   const [duration, setDuration] = useState(episode?.duration ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Preview mode: non-premium users can listen to first 60 seconds of premium episodes
-  const isPreview = !!episode?.premium && !premium;
-  const PREVIEW_LIMIT = 60; // seconds
-  const [previewEnded, setPreviewEnded] = useState(false);
+  // ── Chapter mode ──────────────────────────────────────────────────────────
+  const chapters = episode?.chapters ?? [];
+  const hasChapters = chapters.length > 1;
+  // null = chapter selection screen; number = index of playing chapter
+  const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(
+    hasChapters ? null : 0,
+  );
+  const [chapterEnded, setChapterEnded] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Derived chapter values (safe when no chapters: fall back to full episode)
+  const selectedChapter = selectedChapterIdx !== null ? (chapters[selectedChapterIdx] ?? null) : null;
+  const chapterStart = selectedChapter?.startTime ?? 0;
+  const chapterEnd = selectedChapter?.endTime ?? (episode?.duration ?? 0);
+  const chapterDuration = Math.max(1, chapterEnd - chapterStart);
+  const chapterCurrentTime = Math.max(0, Math.min(currentTime - chapterStart, chapterDuration));
+
+  // Chapter 0 is always free; idx ≥ 1 requires premium on premium episodes
+  const isChapterLocked = (idx: number): boolean => !!episode?.premium && !premium && idx > 0;
 
   // Persist playback rate across sessions
   const [playbackRate, setPlaybackRate] = useState<number>(() => {
@@ -76,17 +92,6 @@ export default function PlayerPage() {
     setCurrentTime(time);
   }, []);
 
-  // Enforce preview limit
-  useEffect(() => {
-    if (!isPreview || previewEnded) return;
-    if (currentTime >= PREVIEW_LIMIT) {
-      setPreviewEnded(true);
-      if (episode?.videoUrl) videoRef.current?.pause();
-      else if (audioRef.current) audioRef.current.pause();
-      setIsPlaying(false);
-    }
-  }, [currentTime, isPreview, previewEnded, episode?.videoUrl]);
-
   const activateSeekFreeze = useCallback(() => {
     seekFreezeRef.current = true;
     if (seekFreezeTimerRef.current) clearTimeout(seekFreezeTimerRef.current);
@@ -95,6 +100,72 @@ export default function PlayerPage() {
       seekFreezeTimerRef.current = null;
     }, 700);
   }, []);
+
+  // Select a chapter: seek to its start and begin playback
+  const selectChapter = useCallback((idx: number) => {
+    const ch = chapters[idx];
+    if (!ch) return;
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setSelectedChapterIdx(idx);
+    setChapterEnded(false);
+    setCountdown(3);
+    const seekTime = ch.startTime;
+    setCurrentTime(seekTime);
+    activateSeekFreeze();
+    setTimeout(() => {
+      if (episode?.videoUrl) {
+        videoRef.current?.seekTo(seekTime);
+        videoRef.current?.play();
+      } else if (audioRef.current) {
+        audioRef.current.currentTime = seekTime;
+        audioRef.current.play().catch(() => {});
+      }
+      setIsPlaying(true);
+    }, 50);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapters, episode?.videoUrl, activateSeekFreeze]);
+
+  // Detect end of current chapter
+  useEffect(() => {
+    if (selectedChapterIdx === null || chapterEnded || !selectedChapter) return;
+    if (currentTime >= chapterEnd - 0.3) {
+      setChapterEnded(true);
+      if (episode?.videoUrl) videoRef.current?.pause();
+      else if (audioRef.current) audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, chapterEnd, chapterEnded, selectedChapterIdx, episode?.videoUrl]);
+
+  // 3-second countdown then auto-advance to next chapter
+  useEffect(() => {
+    if (!chapterEnded || selectedChapterIdx === null) return;
+    const nextIdx = selectedChapterIdx + 1;
+    if (nextIdx >= chapters.length || isChapterLocked(nextIdx)) return;
+    setCountdown(3);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(countdownIntervalRef.current!);
+          countdownIntervalRef.current = null;
+          selectChapter(nextIdx);
+          return 3;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterEnded, selectedChapterIdx]);
 
   // Simulated time ticker for demo (when no real audio/video)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -188,7 +259,9 @@ export default function PlayerPage() {
 
   const handleSkip = useCallback((delta: number) => {
     setCurrentTime((t) => {
-      const next = Math.max(0, Math.min(t + delta, duration));
+      const lo = selectedChapter ? chapterStart : 0;
+      const hi = selectedChapter ? chapterEnd : duration;
+      const next = Math.max(lo, Math.min(t + delta, hi));
       if (episode?.videoUrl) {
         videoRef.current?.seekTo(next);
       } else if (audioRef.current) {
@@ -197,7 +270,7 @@ export default function PlayerPage() {
       return next;
     });
     activateSeekFreeze();
-  }, [duration, episode?.videoUrl, activateSeekFreeze]);
+  }, [duration, chapterStart, chapterEnd, selectedChapter, episode?.videoUrl, activateSeekFreeze]);
 
   const handleRateChange = useCallback((rate: number) => {
     setPlaybackRate(rate);
@@ -266,17 +339,14 @@ export default function PlayerPage() {
   }, [isPlaying, navVisible, showNav, scheduleNavHide]);
 
   // ── Active chapter (derived, no extra state) ─────────────────────────────
-  const chapters = episode?.chapters;
-  const activeChapterIdx = chapters
+  const activeChapterIdx = chapters.length > 0
     ? chapters.findIndex(ch => currentTime >= ch.startTime && currentTime < ch.endTime)
     : -1;
   // When between chapters (gap) fall back to last chapter whose startTime ≤ currentTime
   const effectiveChapterIdx = activeChapterIdx !== -1
     ? activeChapterIdx
-    : (chapters
-        ? chapters.reduce((best, ch, i) => (ch.startTime <= currentTime ? i : best), 0)
-        : 0);
-  const activeChapter = chapters?.[effectiveChapterIdx] ?? null;
+    : chapters.reduce((best, ch, i) => (ch.startTime <= currentTime ? i : best), 0);
+  const activeChapter = chapters[effectiveChapterIdx] ?? null;
 
   // ── Auto-resume: seek to saved position once media reports its duration ───
   const didAutoResumeRef = useRef(false);
@@ -288,14 +358,16 @@ export default function PlayerPage() {
       if (playbackRate !== 1) {
         setTimeout(() => videoRef.current?.setPlaybackRate(playbackRate), 300);
       }
-      const saved = getSavedPosition();
-      if (saved > 1) {
-        // Small delay so VideoPlayer's internal state settles before seeking
-        setTimeout(() => handleSeek(saved), 300);
+      // In chapter mode the user selects which chapter to resume — skip auto-resume
+      if (!hasChapters) {
+        const saved = getSavedPosition();
+        if (saved > 1) {
+          setTimeout(() => handleSeek(saved), 300);
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getSavedPosition, playbackRate]);
+  }, [getSavedPosition, playbackRate, hasChapters]);
 
   // ── Save progress every 5s while playing ─────────────────────────────────
   useEffect(() => {
@@ -319,29 +391,151 @@ export default function PlayerPage() {
 
   const isVideo = !!episode.videoUrl;
 
+  // Chapter duration string for display
+  const fmtMin = (s: number) => `${Math.round(s / 60)} min`;
+
   return (
     <div className="relative flex flex-col bg-bg overflow-hidden" style={{ height: '100dvh' }}>
-      {/* Preview-ended overlay */}
-      {previewEnded && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-bg/95 backdrop-blur-sm px-8 text-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-amber-400/10 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
+
+      {/* ── Chapter selection overlay ──────────────────────────────────────── */}
+      {selectedChapterIdx === null && hasChapters && (
+        <div className="absolute inset-0 z-40 bg-bg flex flex-col">
+          {/* Header */}
+          <div className="flex items-center px-4 h-14 border-b border-border shrink-0">
+            <button
+              className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+              onClick={() => navigate('/')}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <div className="flex-1 text-center px-2">
+              <p className="text-xs text-muted truncate">{episode.podcastName}</p>
+              <p className="text-sm font-medium text-slate-200 truncate max-w-[220px] mx-auto leading-tight">{episode.title}</p>
+            </div>
+            <div className="w-9" />
           </div>
-          <div>
-            <p className="text-white font-bold text-lg mb-1">试听结束</p>
-            <p className="text-muted text-sm leading-relaxed">免费试听 1 分钟已结束。<br/>升级 PRO 账号即可解锁完整内容。</p>
+          {/* Chapter list */}
+          <div className="flex-1 overflow-y-auto px-5 pt-4 pb-10 space-y-2.5">
+            <p className="text-xs text-muted uppercase tracking-wider mb-3">选择章节</p>
+            {chapters.map((ch, idx) => {
+              const locked = isChapterLocked(idx);
+              const dur = fmtMin(ch.endTime - ch.startTime);
+              return (
+                <button
+                  key={ch.id}
+                  onClick={() => { if (!locked) selectChapter(idx); }}
+                  className={`w-full text-left flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                    locked
+                      ? 'border-[#1e2330] bg-[#0d0f14] opacity-60 cursor-default'
+                      : 'border-[#1e2330] bg-[#161920] hover:border-accent/30 hover:bg-[#1a1f2e] active:scale-[0.99]'
+                  }`}
+                >
+                  {/* Index bubble */}
+                  <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${
+                    locked ? 'bg-amber-400/10 text-amber-500' : 'bg-accent/15 text-accent'
+                  }`}>
+                    {locked
+                      ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      : <span>{idx + 1}</span>
+                    }
+                  </div>
+                  {/* Text */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-100 leading-snug">{ch.title}</p>
+                    {ch.description && (
+                      <p className="text-xs text-muted leading-relaxed mt-0.5 line-clamp-1">{ch.description}</p>
+                    )}
+                  </div>
+                  {/* Right side */}
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    <span className="text-xs text-muted tabular-nums">{dur}</span>
+                    {locked
+                      ? <span className="text-[10px] bg-amber-400/15 text-amber-400 font-semibold px-1.5 py-0.5 rounded-md">PRO</span>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                    }
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <button
-            onClick={() => navigate('/')}
-            className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
-          >
-            返回首页
-          </button>
         </div>
       )}
+
+      {/* ── Chapter-ended overlay ──────────────────────────────────────────── */}
+      {chapterEnded && selectedChapterIdx !== null && (() => {
+        const nextIdx = selectedChapterIdx + 1;
+        const nextChapter = chapters[nextIdx];
+        const nextLocked = nextChapter ? isChapterLocked(nextIdx) : false;
+        return (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-bg/95 backdrop-blur-sm px-8 text-center gap-5">
+            {/* Check icon */}
+            <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-white font-bold text-lg mb-1">第 {selectedChapterIdx + 1} 章完成</p>
+              <p className="text-muted text-sm">{chapters[selectedChapterIdx]?.title}</p>
+            </div>
+
+            {nextChapter && !nextLocked ? (
+              // Auto-advance to next chapter
+              <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+                <p className="text-xs text-muted">下一章</p>
+                <p className="text-sm font-semibold text-white">{nextChapter.title}</p>
+                <button
+                  onClick={() => {
+                    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+                    selectChapter(nextIdx);
+                  }}
+                  className="w-full bg-accent text-bg font-semibold text-sm py-3 rounded-2xl hover:bg-accent/90 transition-colors"
+                >
+                  立即播放（{countdown}s）
+                </button>
+                <button
+                  onClick={() => {
+                    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+                    setChapterEnded(false);
+                    setSelectedChapterIdx(null);
+                  }}
+                  className="text-sm text-muted hover:text-white transition-colors"
+                >
+                  返回章节列表
+                </button>
+              </div>
+            ) : nextChapter && nextLocked ? (
+              // Next chapter is locked
+              <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+                <div className="w-10 h-10 rounded-xl bg-amber-400/10 flex items-center justify-center">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <p className="text-sm text-muted leading-relaxed">后续章节需要 PRO 账号<br/>升级即可解锁全集内容</p>
+                <button
+                  onClick={() => { setChapterEnded(false); setSelectedChapterIdx(null); }}
+                  className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
+                >
+                  返回章节列表
+                </button>
+              </div>
+            ) : (
+              // Last chapter
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-sm text-muted">已完成全部章节 🎉</p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
+                >
+                  返回首页
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Top nav — auto-hides while playing */}
       <div
         className={`flex items-center justify-between px-4 h-14 border-b border-border shrink-0 transition-all duration-300 overflow-hidden ${
@@ -476,13 +670,14 @@ export default function PlayerPage() {
       <div className="shrink-0">
         <AudioControls
           episode={episode}
-          currentTime={currentTime}
-          duration={duration}
+          currentTime={hasChapters ? chapterCurrentTime : currentTime}
+          duration={hasChapters ? chapterDuration : duration}
           isPlaying={isPlaying}
           playbackRate={playbackRate}
-          chapters={chapters}
+          chapters={hasChapters ? undefined : (episode.chapters ?? undefined)}
+          chapterLabel={selectedChapter ? `Part ${selectedChapterIdx! + 1} · ${selectedChapter.title}` : undefined}
           onPlayPause={handlePlayPause}
-          onSeek={handleSeek}
+          onSeek={hasChapters ? (t) => handleSeek(chapterStart + t) : handleSeek}
           onSkip={handleSkip}
           onRateChange={handleRateChange}
         />
