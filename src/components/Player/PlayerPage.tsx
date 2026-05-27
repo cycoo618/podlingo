@@ -581,62 +581,106 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {/* Video player (video mode only) */}
-      {isVideo && episode.videoUrl && (
-        <div className="shrink-0">
-          <VideoPlayer
-            ref={videoRef}
-            src={episode.videoUrl}
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-          />
+      {/* ── Body: single-column on mobile, two-column on desktop ────────── */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+        {/* LEFT column (desktop) / TOP section (mobile): media + controls */}
+        <div className="lg:w-[45%] lg:shrink-0 lg:flex lg:flex-col lg:border-r lg:border-border lg:overflow-hidden">
+          {/* Video */}
+          {isVideo && episode.videoUrl && (
+            <div className="shrink-0">
+              <VideoPlayer
+                ref={videoRef}
+                src={episode.videoUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+              />
+            </div>
+          )}
+
+          {/* Hidden audio element */}
+          {!isVideo && episode.audioUrl && (
+            <audio
+              ref={audioRef}
+              src={episode.audioUrl}
+              onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
+              onLoadedMetadata={(e) => handleLoadedMetadata(e.currentTarget.duration)}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+            />
+          )}
+
+          {/* Desktop: fill remaining space, show controls at bottom */}
+          <div className="hidden lg:flex lg:flex-col lg:flex-1">
+            {/* Audio-only: show cover art centered */}
+            {!isVideo && (
+              <div className="flex-1 flex items-center justify-center p-10">
+                <img
+                  src={episode.coverImage}
+                  alt={episode.podcastName}
+                  className="w-52 h-52 rounded-2xl object-cover shadow-2xl"
+                />
+              </div>
+            )}
+            {/* Video: spacer pushes controls to bottom */}
+            {isVideo && <div className="flex-1" />}
+            {/* Controls pinned to bottom of left column */}
+            <div className="shrink-0">
+              <AudioControls
+                episode={episode}
+                currentTime={hasChapters ? chapterCurrentTime : currentTime}
+                duration={hasChapters ? chapterDuration : duration}
+                isPlaying={isPlaying}
+                playbackRate={playbackRate}
+                chapters={hasChapters ? chapters : (episode.chapters ?? undefined)}
+                chapterLabel={selectedChapter ? `${selectedChapterIdx! + 1}. ${selectedChapter.title}` : undefined}
+                selectedChapterIdx={selectedChapterIdx ?? undefined}
+                onSelectChapter={hasChapters ? selectChapter : undefined}
+                isChapterLocked={hasChapters ? isChapterLocked : undefined}
+                onPlayPause={handlePlayPause}
+                onSeek={hasChapters ? (t) => handleSeek(chapterStart + t) : handleSeek}
+                onSkip={handleSkip}
+                onRateChange={handleRateChange}
+              />
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Hidden audio element */}
-      {!isVideo && episode.audioUrl && (
-        <audio
-          ref={audioRef}
-          src={episode.audioUrl}
-          onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => handleLoadedMetadata(e.currentTarget.duration)}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => setIsPlaying(false)}
-        />
-      )}
+        {/* RIGHT column (desktop) / BOTTOM section (mobile): transcript + mobile controls */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TranscriptView
+            episode={episode}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+            onSentenceSeek={handleSentenceSeek}
+            onPlayPause={handlePlayPause}
+            onTap={handleTranscriptTap}
+            fontSize={fontSize}
+          />
 
-      {/* Transcript — wrapper catches taps to restore nav while playing */}
-      <TranscriptView
-        episode={episode}
-        currentTime={currentTime}
-        onSeek={handleSeek}
-        onSentenceSeek={handleSentenceSeek}
-        onPlayPause={handlePlayPause}
-        onTap={handleTranscriptTap}
-        fontSize={fontSize}
-      />
-
-      {/* Audio controls */}
-      <div className="shrink-0">
-        <AudioControls
-          episode={episode}
-          currentTime={hasChapters ? chapterCurrentTime : currentTime}
-          duration={hasChapters ? chapterDuration : duration}
-          isPlaying={isPlaying}
-          playbackRate={playbackRate}
-          chapters={hasChapters ? chapters : (episode.chapters ?? undefined)}
-          chapterLabel={selectedChapter ? `${selectedChapterIdx! + 1}. ${selectedChapter.title}` : undefined}
-          selectedChapterIdx={selectedChapterIdx ?? undefined}
-          onSelectChapter={hasChapters ? selectChapter : undefined}
-          isChapterLocked={hasChapters ? isChapterLocked : undefined}
-          onPlayPause={handlePlayPause}
-          onSeek={hasChapters ? (t) => handleSeek(chapterStart + t) : handleSeek}
-          onSkip={handleSkip}
-          onRateChange={handleRateChange}
-        />
+          {/* Mobile only: audio controls below transcript */}
+          <div className="shrink-0 lg:hidden">
+            <AudioControls
+              episode={episode}
+              currentTime={hasChapters ? chapterCurrentTime : currentTime}
+              duration={hasChapters ? chapterDuration : duration}
+              isPlaying={isPlaying}
+              playbackRate={playbackRate}
+              chapters={hasChapters ? chapters : (episode.chapters ?? undefined)}
+              chapterLabel={selectedChapter ? `${selectedChapterIdx! + 1}. ${selectedChapter.title}` : undefined}
+              selectedChapterIdx={selectedChapterIdx ?? undefined}
+              onSelectChapter={hasChapters ? selectChapter : undefined}
+              isChapterLocked={hasChapters ? isChapterLocked : undefined}
+              onPlayPause={handlePlayPause}
+              onSeek={hasChapters ? (t) => handleSeek(chapterStart + t) : handleSeek}
+              onSkip={handleSkip}
+              onRateChange={handleRateChange}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
