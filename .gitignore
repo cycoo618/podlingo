@@ -28,3 +28,6 @@ node_modules/.vite_bak
 *.njsproj
 *.sln
 *.sw?
+scripts/*.mp3
+scripts/*.json
+scripts/*.ts

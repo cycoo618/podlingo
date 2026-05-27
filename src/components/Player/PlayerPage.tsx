@@ -31,7 +31,6 @@ export default function PlayerPage() {
   const [chapterEnded, setChapterEnded] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [showChapterSheet, setShowChapterSheet] = useState(false);
 
   // Snap chapter boundaries to natural sentence-pause break points
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -413,7 +412,7 @@ export default function PlayerPage() {
               </svg>
             </div>
             <div>
-              <p className="text-white font-bold text-lg mb-1">第 {selectedChapterIdx + 1} 章完成</p>
+              <p className="text-white font-bold text-lg mb-1">第 {selectedChapterIdx + 1} 小节完成</p>
               <p className="text-muted text-sm">{chapters[selectedChapterIdx]?.title}</p>
             </div>
 
@@ -435,11 +434,10 @@ export default function PlayerPage() {
                   onClick={() => {
                     if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
                     setChapterEnded(false);
-                    setShowChapterSheet(true);
                   }}
                   className="text-sm text-muted hover:text-white transition-colors"
                 >
-                  章节列表
+                  取消
                 </button>
               </div>
             ) : nextChapter && nextLocked ? (
@@ -448,18 +446,18 @@ export default function PlayerPage() {
                 <div className="w-10 h-10 rounded-xl bg-amber-400/10 flex items-center justify-center">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </div>
-                <p className="text-sm text-muted leading-relaxed">后续章节需要 PRO 账号<br/>升级即可解锁全集内容</p>
+                <p className="text-sm text-muted leading-relaxed">后续小节需要 PRO 账号<br/>升级即可解锁全集内容</p>
                 <button
-                  onClick={() => { setChapterEnded(false); setShowChapterSheet(true); }}
+                  onClick={() => { setChapterEnded(false); }}
                   className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
                 >
-                  章节列表
+                  知道了
                 </button>
               </div>
             ) : (
               // Last chapter
               <div className="flex flex-col items-center gap-3">
-                <p className="text-sm text-muted">已完成全部章节 🎉</p>
+                <p className="text-sm text-muted">已完成全部小节 🎉</p>
                 <button
                   onClick={() => navigate('/')}
                   className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
@@ -602,69 +600,6 @@ export default function PlayerPage() {
         fontSize={fontSize}
       />
 
-      {/* ── Chapter list sheet — slides in above AudioControls ─────────────── */}
-      {showChapterSheet && hasChapters && (
-        <div className="shrink-0 border-t border-border bg-[#0d1017] overflow-y-auto" style={{ maxHeight: '45dvh' }}>
-          {/* Sheet header */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 sticky top-0 bg-[#0d1017]">
-            <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">章节</p>
-            <button
-              onClick={() => setShowChapterSheet(false)}
-              className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-white transition-colors rounded-lg hover:bg-white/5"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          {/* Chapter rows */}
-          {chapters.map((ch, idx) => {
-            const isActive = idx === selectedChapterIdx;
-            const locked = isChapterLocked(idx);
-            const mins = Math.round((ch.endTime - ch.startTime) / 60);
-            return (
-              <button
-                key={ch.id}
-                onClick={() => {
-                  if (locked) return;
-                  selectChapter(idx);
-                  setShowChapterSheet(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 border-b border-border/40 transition-colors text-left ${
-                  isActive ? 'bg-accent/5' : locked ? 'opacity-50 cursor-default' : 'hover:bg-white/3 active:bg-white/5'
-                }`}
-              >
-                {/* Chapter indicator */}
-                <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
-                  isActive ? 'bg-accent text-bg' : locked ? 'bg-amber-400/15 text-amber-500' : 'bg-white/8 text-muted'
-                }`}>
-                  {locked
-                    ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    : idx + 1
-                  }
-                </div>
-                {/* Title */}
-                <p className={`flex-1 text-sm leading-snug ${isActive ? 'text-white font-semibold' : 'text-slate-300'}`}>
-                  {ch.title}
-                </p>
-                {/* Duration + active indicator */}
-                <div className="shrink-0 flex items-center gap-2">
-                  <span className="text-xs text-muted tabular-nums">{mins}m</span>
-                  {isActive && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#6ee7b7">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  )}
-                  {locked && (
-                    <span className="text-[10px] bg-amber-400/15 text-amber-400 font-semibold px-1 py-0.5 rounded">PRO</span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* Audio controls */}
       <div className="shrink-0">
         <AudioControls
@@ -673,13 +608,15 @@ export default function PlayerPage() {
           duration={hasChapters ? chapterDuration : duration}
           isPlaying={isPlaying}
           playbackRate={playbackRate}
-          chapters={hasChapters ? undefined : (episode.chapters ?? undefined)}
+          chapters={hasChapters ? chapters : (episode.chapters ?? undefined)}
           chapterLabel={selectedChapter ? `${selectedChapterIdx! + 1}. ${selectedChapter.title}` : undefined}
+          selectedChapterIdx={selectedChapterIdx ?? undefined}
+          onSelectChapter={hasChapters ? selectChapter : undefined}
+          isChapterLocked={hasChapters ? isChapterLocked : undefined}
           onPlayPause={handlePlayPause}
           onSeek={hasChapters ? (t) => handleSeek(chapterStart + t) : handleSeek}
           onSkip={handleSkip}
           onRateChange={handleRateChange}
-          onOpenChapterList={hasChapters ? () => setShowChapterSheet((v) => !v) : undefined}
         />
       </div>
     </div>

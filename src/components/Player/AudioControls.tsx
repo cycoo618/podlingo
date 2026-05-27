@@ -10,10 +10,14 @@ interface AudioControlsProps {
   isPlaying: boolean;
   playbackRate: number;
   chapters?: Chapter[];
-  /** When set, replaces the episode title in the bottom bar (used for chapter label) */
+  /** When set, replaces the episode title in the bottom bar */
   chapterLabel?: string;
-  /** When set, a chapter-list button appears next to the speed selector */
-  onOpenChapterList?: () => void;
+  /** Index of currently-playing chapter (for highlight in popover) */
+  selectedChapterIdx?: number;
+  /** Called when user picks a chapter from the popover */
+  onSelectChapter?: (idx: number) => void;
+  /** Returns true if a chapter index should be locked */
+  isChapterLocked?: (idx: number) => boolean;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onSkip: (delta: number) => void;
@@ -34,7 +38,9 @@ export default function AudioControls({
   playbackRate,
   chapters,
   chapterLabel,
-  onOpenChapterList,
+  selectedChapterIdx,
+  onSelectChapter,
+  isChapterLocked,
   onPlayPause,
   onSeek,
   onSkip,
@@ -42,14 +48,20 @@ export default function AudioControls({
 }: AudioControlsProps) {
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showChapterMenu, setShowChapterMenu] = useState(false);
   const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const chapterBtnRef = useRef<HTMLButtonElement>(null);
+  const hasChapterMenu = !!(chapters && chapters.length > 1 && onSelectChapter);
 
-  // Close speed menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
-    if (!showSpeedMenu) return;
+    if (!showSpeedMenu && !showChapterMenu) return;
     const handleClick = (e: Event) => {
-      if (speedBtnRef.current && !speedBtnRef.current.parentElement?.contains(e.target as Node)) {
+      if (showSpeedMenu && speedBtnRef.current && !speedBtnRef.current.parentElement?.contains(e.target as Node)) {
         setShowSpeedMenu(false);
+      }
+      if (showChapterMenu && chapterBtnRef.current && !chapterBtnRef.current.parentElement?.contains(e.target as Node)) {
+        setShowChapterMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -58,7 +70,7 @@ export default function AudioControls({
       document.removeEventListener('mousedown', handleClick);
       document.removeEventListener('touchstart', handleClick);
     };
-  }, [showSpeedMenu]);
+  }, [showSpeedMenu, showChapterMenu]);
 
   return (
     <div
@@ -153,19 +165,71 @@ export default function AudioControls({
             </svg>
           </button>
 
-          {/* Chapter list button */}
-          {onOpenChapterList && (
-            <button
-              onClick={onOpenChapterList}
-              className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
-              title="章节列表"
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <line x1="3" y1="12" x2="15" y2="12"/>
-                <line x1="3" y1="18" x2="10" y2="18"/>
-              </svg>
-            </button>
+          {/* Chapter list button + popover */}
+          {hasChapterMenu && (
+            <div className="relative">
+              {showChapterMenu && (
+                <div
+                  className="absolute bottom-full right-0 mb-2 w-56 rounded-xl shadow-2xl border overflow-hidden"
+                  style={{ backgroundColor: 'var(--clr-speed-bg)', borderColor: 'var(--clr-border2)', maxHeight: '52vh', overflowY: 'auto' }}
+                >
+                  {chapters!.map((ch, idx) => {
+                    const isActive = idx === selectedChapterIdx;
+                    const locked = isChapterLocked?.(idx) ?? false;
+                    const mins = Math.round((ch.endTime - ch.startTime) / 60);
+                    return (
+                      <button
+                        key={ch.id}
+                        onClick={() => {
+                          if (locked) return;
+                          onSelectChapter!(idx);
+                          setShowChapterMenu(false);
+                        }}
+                        className={`flex items-center gap-2.5 w-full px-3 py-2.5 text-left border-b transition-colors ${
+                          isActive
+                            ? 'text-accent bg-accent/10 border-accent/10'
+                            : locked
+                            ? 'text-slate-600 cursor-default border-white/5'
+                            : 'text-slate-300 hover:text-white hover:bg-white/5 border-white/5'
+                        }`}
+                      >
+                        <span className={`text-[11px] font-bold w-4 shrink-0 text-right tabular-nums ${isActive ? 'text-accent' : 'text-muted'}`}>
+                          {idx + 1}
+                        </span>
+                        <span className={`flex-1 text-xs leading-snug truncate ${isActive ? 'font-semibold' : ''}`}>
+                          {ch.title}
+                        </span>
+                        <span className="text-[11px] text-muted tabular-nums shrink-0">{mins}m</span>
+                        {isActive && (
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="#6ee7b7" className="shrink-0">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        )}
+                        {locked && (
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <button
+                ref={chapterBtnRef}
+                onClick={() => setShowChapterMenu((v) => !v)}
+                className={`h-9 px-2 flex items-center justify-center rounded-lg transition-colors ${
+                  showChapterMenu ? 'text-accent bg-accent/10' : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="小节"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <line x1="3" y1="12" x2="15" y2="12"/>
+                  <line x1="3" y1="18" x2="10" y2="18"/>
+                </svg>
+              </button>
+            </div>
           )}
 
           {/* Speed button with upward popover */}
