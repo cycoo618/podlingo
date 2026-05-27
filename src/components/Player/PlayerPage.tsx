@@ -585,7 +585,7 @@ export default function PlayerPage() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
 
         {/* LEFT column (desktop) / TOP section (mobile): media + controls */}
-        <div className="lg:w-[45%] lg:shrink-0 lg:flex lg:flex-col lg:border-r lg:border-border lg:overflow-hidden">
+        <div className="lg:w-2/3 lg:shrink-0 lg:flex lg:flex-col lg:border-r lg:border-border lg:overflow-hidden">
           {/* Video */}
           {isVideo && episode.videoUrl && (
             <div className="shrink-0">
