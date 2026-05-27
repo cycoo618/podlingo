@@ -478,7 +478,7 @@ export default function PlayerPage() {
 
       {/* Top nav — auto-hides while playing */}
       <div
-        className={`flex items-center justify-between px-4 h-14 border-b border-border shrink-0 transition-all duration-300 overflow-hidden ${
+        className={`flex items-center justify-between px-4 h-14 border-b border-border shrink-0 transition-all duration-300 overflow-hidden lg:opacity-100 lg:max-h-14 lg:border-b lg:pointer-events-auto ${
           navVisible ? 'opacity-100 max-h-14' : 'opacity-0 max-h-0 border-b-0 pointer-events-none'
         }`}
       >
