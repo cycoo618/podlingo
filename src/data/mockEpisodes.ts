@@ -17811,6 +17811,7 @@ export const mockEpisodes: Episode[] = [
     coverImage: 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=400&h=400&fit=crop',
     duration: 7145.2,
     language: 'en-zh',
+    premium: true,
     chapters: [
       { id: 'jc1', title: 'Part 1', description: '0:00 – 10:00', startTime: 0.0, endTime: 600.0 },
       { id: 'jc2', title: 'Part 2', description: '10:00 – 20:00', startTime: 600.0, endTime: 1200.0 },

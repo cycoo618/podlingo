@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { Episode } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface EpisodeCardProps {
   episode: Episode;
@@ -12,11 +13,13 @@ function fmt(s: number) {
 
 export default function EpisodeCard({ episode }: EpisodeCardProps) {
   const navigate = useNavigate();
+  const { premium } = useAuth();
+  const locked = !!episode.premium && !premium;
 
   return (
     <button
       className="w-full text-left bg-[#161920] hover:bg-[#1a1f2e] border border-[#1e2330] rounded-2xl overflow-hidden transition-all duration-200 hover:border-accent/30 hover:shadow-lg hover:shadow-accent/5 group"
-      onClick={() => navigate(`/player/${episode.id}`)}
+      onClick={() => locked ? navigate('/upgrade') : navigate(`/player/${episode.id}`)}
     >
       <div className="flex gap-4 p-4">
         {/* Cover */}
@@ -24,9 +27,17 @@ export default function EpisodeCard({ episode }: EpisodeCardProps) {
           <img
             src={episode.coverImage}
             alt={episode.podcastName}
-            className="w-16 h-16 rounded-xl object-cover"
+            className={`w-16 h-16 rounded-xl object-cover ${locked ? 'brightness-50' : ''}`}
           />
-          {episode.videoUrl && (
+          {locked && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+          )}
+          {!locked && episode.videoUrl && (
             <div className="absolute -bottom-1 -right-1 bg-purple rounded-md px-1.5 py-0.5">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
                 <path d="M8 5v14l11-7z"/>
@@ -55,7 +66,13 @@ export default function EpisodeCard({ episode }: EpisodeCardProps) {
             <span className="text-xs bg-[#0d0f14] border border-[#2a3348] text-slate-400 px-2 py-0.5 rounded-lg">
               {episode.language === 'en-zh' ? '🇺🇸 → 🇨🇳' : '🇨🇳 → 🇺🇸'}
             </span>
-            {episode.videoUrl && (
+            {episode.premium && (
+              <>
+                <span className="text-[#2a3348]">·</span>
+                <span className="text-xs bg-amber-400/15 text-amber-400 font-semibold px-2 py-0.5 rounded-lg">PRO</span>
+              </>
+            )}
+            {!locked && episode.videoUrl && (
               <>
                 <span className="text-[#2a3348]">·</span>
                 <span className="text-xs bg-purple/10 text-purple px-2 py-0.5 rounded-lg">VIDEO</span>

@@ -7,10 +7,12 @@ import AudioControls from './AudioControls';
 import VideoPlayer from './VideoPlayer';
 import type { VideoHandle } from './VideoPlayer';
 import { useEpisodeProgress } from '../../hooks/useEpisodeProgress';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { premium } = useAuth();
   const episode = mockEpisodes.find((e) => e.id === id);
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -295,6 +297,29 @@ export default function PlayerPage() {
     return (
       <div className="flex items-center justify-center h-screen text-muted">
         Episode not found.
+      </div>
+    );
+  }
+
+  if (episode.premium && !premium) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-bg px-8 text-center gap-5">
+        <div className="w-16 h-16 rounded-2xl bg-amber-400/10 flex items-center justify-center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <div>
+          <p className="text-white font-bold text-lg mb-1">Premium Content</p>
+          <p className="text-muted text-sm leading-relaxed">This episode requires a premium account.<br/>Contact us to upgrade.</p>
+        </div>
+        <button
+          onClick={() => navigate('/')}
+          className="text-sm text-accent border border-accent/30 px-5 py-2.5 rounded-2xl hover:bg-accent/10 transition-colors"
+        >
+          Back to Discover
+        </button>
       </div>
     );
   }
