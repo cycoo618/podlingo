@@ -9,11 +9,13 @@ import VideoPlayer from './VideoPlayer';
 import type { VideoHandle } from './VideoPlayer';
 import { useEpisodeProgress } from '../../hooks/useEpisodeProgress';
 import { useAuth } from '../../contexts/AuthContext';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { premium } = useAuth();
+  const { user, premium } = useAuth();
   const episode = mockEpisodes.find((e) => e.id === id);
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -577,6 +579,22 @@ export default function PlayerPage() {
               </svg>
               单词本
             </button>
+
+            {/* Dev-only: grant premium to current account */}
+            {user && !premium && (
+              <button
+                onClick={async () => {
+                  await updateDoc(doc(db, 'users', user.uid), { premium: true });
+                  window.location.reload();
+                }}
+                className="w-full flex items-center gap-2.5 py-1.5 text-sm text-amber-400/70 hover:text-amber-400 transition-colors"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                开启 PRO（开发调试）
+              </button>
+            )}
           </div>
         </div>
       )}
