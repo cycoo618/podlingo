@@ -69,28 +69,23 @@ def download_cc() -> str:
 # ── Step 2: Parse VTT ─────────────────────────────────────────────────────────
 def parse_vtt(vtt_path: str) -> tuple[list[dict], float]:
     """
-    Returns (segments, duration).
-    Each segment: {text, start, end, words:[{word, start, end}]}
-
-    YouTube VTT has pairs of cues per time-range:
-      - A blank / whitespace cue
-      - A cue with the actual text + <timestamp><c>word</c> marks
-
-    We deduplicate by clean_text.
+    Extract unique words from YouTube VTT by deduplicating on word start-time.
+    YouTube CC cues are ROLLING (each cue repeats some words from the previous),
+    so we collect ALL timestamped words across all cues and deduplicate by
+    start-timestamp — this gives a clean, non-repeating word stream.
+    Returns a list of raw word dicts for merge_segments() to group into sentences.
     """
     with open(vtt_path, encoding="utf-8") as f:
         raw = f.read()
 
-    # Split into cue blocks (separated by blank lines)
-    blocks = re.split(r'\n{2,}', raw.strip())
+    blocks  = re.split(r'\n{2,}', raw.strip())
+    word_re = re.compile(r'<(\d{2}:\d{2}:\d{2}\.\d{3})><c>(.*?)</c>')
+    tag_re  = re.compile(r'<[^>]+>')
+    sp_re   = re.compile(r'\s+')
 
-    word_re  = re.compile(r'<(\d{2}:\d{2}:\d{2}\.\d{3})><c>(.*?)</c>')
-    tag_re   = re.compile(r'<[^>]+>')
-    space_re = re.compile(r'\s+')
-
-    segments = []
-    seen     = set()
-    max_end  = 0.0
+    all_words: list[dict] = []   # {word, start, end_cue, punct}
+    seen_starts: set      = set()
+    max_end = 0.0
 
     for block in blocks:
         lines = [l for l in block.split('\n') if l.strip()]
@@ -98,46 +93,62 @@ def parse_vtt(vtt_path: str) -> tuple[list[dict], float]:
         if not ts_line:
             continue
 
-        # Parse cue start/end
-        arrow = ts_line.index('-->')
-        start = ts_to_sec(ts_line[:arrow].strip())
-        end   = ts_to_sec(ts_line[arrow + 3:].strip())
-        max_end = max(max_end, end)
+        arrow  = ts_line.index('-->')
+        cue_end = ts_to_sec(ts_line[arrow + 3:].strip())
+        max_end = max(max_end, cue_end)
 
-        # Text lines = everything after the timestamp line
-        idx = lines.index(ts_line)
+        idx      = lines.index(ts_line)
         text_raw = ' '.join(lines[idx + 1:])
 
-        # Clean text
-        clean = space_re.sub(' ', tag_re.sub('', text_raw)).strip()
-        if not clean or clean in seen:
-            continue
-        seen.add(clean)
-
-        # Extract word-level timestamps
         matches = list(word_re.finditer(text_raw))
-        if matches:
-            words = []
-            for i, m in enumerate(matches):
-                w_start = ts_to_sec(m.group(1))
-                w_word  = m.group(2)
-                # word ends at next word's start, or cue end
-                w_end   = ts_to_sec(matches[i + 1].group(1)) if i + 1 < len(matches) else end
-                if w_word.strip():
-                    words.append({"word": w_word, "start": round(w_start, 3), "end": round(w_end, 3)})
-        else:
-            words = [{"word": clean, "start": round(start, 3), "end": round(end, 3)}]
+        for i, m in enumerate(matches):
+            w_start = round(ts_to_sec(m.group(1)), 3)
+            w_word  = m.group(2)
+            if not w_word.strip() or w_start in seen_starts:
+                continue
+            seen_starts.add(w_start)
+            w_end = round(ts_to_sec(matches[i + 1].group(1)), 3) if i + 1 < len(matches) else cue_end
+            all_words.append({"word": w_word, "start": w_start, "end": round(w_end, 3)})
 
-        if words:
-            segments.append({
-                "text":  clean,
-                "start": round(start, 3),
-                "end":   round(end,   3),
-                "words": words,
-            })
+    all_words.sort(key=lambda w: w["start"])
+    print(f"   → {len(all_words)} unique words, duration ≈ {max_end:.1f}s")
+    return all_words, max_end
 
-    print(f"   → {len(segments)} segments, duration ≈ {max_end:.1f}s")
-    return segments, max_end
+
+# ── Group flat word list into sentence-level segments ─────────────────────────
+def merge_segments(words: list[dict], max_words: int = 25) -> list[dict]:
+    """
+    Group the flat deduplicated word list into sentence-level segments.
+    Splits on sentence-ending punctuation or when word count hits max_words.
+    """
+    merged: list[dict] = []
+    buf:    list[dict] = []
+
+    def flush():
+        if not buf:
+            return
+        text = "".join(
+            w["word"] if i == 0 else
+            (" " + w["word"] if not w["word"].startswith((" ", "'", ",", ".", "!", "?", ":", ";")) else w["word"])
+            for i, w in enumerate(buf)
+        ).strip()
+        merged.append({
+            "text":  text,
+            "start": buf[0]["start"],
+            "end":   buf[-1]["end"],
+            "words": list(buf),
+        })
+
+    for w in words:
+        buf.append(w)
+        word_text = w["word"].rstrip()
+        if (word_text and word_text[-1] in ".!?") or len(buf) >= max_words:
+            flush()
+            buf = []
+
+    flush()
+    print(f"   → grouped into {len(merged)} sentence-level segments")
+    return merged
 
 
 # ── Chapters ──────────────────────────────────────────────────────────────────
@@ -190,23 +201,39 @@ def chapter_to_ts(c: dict) -> str:
             f"{desc}, startTime: {c['start']}, endTime: {c['end']} }},")
 
 
+CHECKPOINT = os.path.join(SCRIPT_DIR, "allin_ep3_cn_checkpoint.json")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     # 1. Download CC
     vtt_path = download_cc()
 
-    # 2. Parse VTT
-    print("[2] Parsing VTT …")
-    raw_segs, duration = parse_vtt(vtt_path)
+    # 2. Parse VTT + merge into sentences
+    print("[2] Parsing & merging VTT …")
+    raw_cues, duration = parse_vtt(vtt_path)
+    raw_segs = merge_segments(raw_cues)
 
-    # 3. Translate
+    # 3. Translate with checkpoint/resume
     from deep_translator import GoogleTranslator
     translator = GoogleTranslator(source="en", target="zh-CN")
 
-    print(f"[3] Translating {len(raw_segs)} segments …")
-    cn_texts = []
-    for i, seg in enumerate(raw_segs):
-        text = seg["text"].strip()
+    # Load existing checkpoint if available
+    cn_texts: list[str] = []
+    start_from = 0
+    if os.path.exists(CHECKPOINT):
+        with open(CHECKPOINT, encoding="utf-8") as f:
+            ckpt = json.load(f)
+        if ckpt.get("total") == len(raw_segs):
+            cn_texts = ckpt["cn_texts"]
+            start_from = len(cn_texts)
+            print(f"[resume] Checkpoint found: {start_from}/{len(raw_segs)} already translated")
+        else:
+            print(f"[warn] Checkpoint size mismatch, starting fresh")
+
+    print(f"[3] Translating {len(raw_segs)} segments (from {start_from}) …")
+    for i in range(start_from, len(raw_segs)):
+        text = raw_segs[i]["text"].strip()
         if not text:
             cn_texts.append(""); continue
         for attempt in range(3):
@@ -218,9 +245,16 @@ def main():
                 else:
                     print(f"  [warn] seg {i}: {e}")
                     cn_texts.append(text)
-        if (i + 1) % 200 == 0:
-            print(f"  … {i+1}/{len(raw_segs)} translated", flush=True)
+        # Save checkpoint every 50 segments
+        if (i + 1) % 50 == 0:
+            with open(CHECKPOINT, "w", encoding="utf-8") as f:
+                json.dump({"total": len(raw_segs), "cn_texts": cn_texts}, f, ensure_ascii=False)
+            print(f"  … {i+1}/{len(raw_segs)} translated ✓", flush=True)
         time.sleep(0.12)
+
+    # Final checkpoint save
+    with open(CHECKPOINT, "w", encoding="utf-8") as f:
+        json.dump({"total": len(raw_segs), "cn_texts": cn_texts}, f, ensure_ascii=False)
     print("   Translation complete.")
 
     # 4. Build sentence objects
