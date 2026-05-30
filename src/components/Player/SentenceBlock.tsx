@@ -64,6 +64,9 @@ export default function SentenceBlock({
       data-cn-text={sentence.cnText}
       onClick={(e) => {
         e.stopPropagation();
+        // Don't seek if user just finished a text-selection drag
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
         onSentenceClick(sentence.startTime);
       }}
     >
@@ -103,7 +106,7 @@ export default function SentenceBlock({
         {language === 'zh-en' ? (
           <>
             {/* Chinese words with pinyin above each character/word */}
-            <div className="flex flex-wrap gap-x-2 gap-y-1 select-none">
+            <div className="flex flex-wrap gap-x-2 gap-y-1">
               {sentence.words.map((word, i) => {
                 const isActiveWord = status === 'active' && i === activeWordIndex;
                 const isChinese = /[一-鿿]/.test(word.text);
@@ -162,7 +165,7 @@ export default function SentenceBlock({
         ) : (
           <>
             {/* English line */}
-            <p className={`${EN_SIZES[fontSize]} leading-relaxed text-slate-200 select-none`}>
+            <p className={`${EN_SIZES[fontSize]} leading-relaxed text-slate-200`}>
               {sentence.words.map((word, i) => {
                 const isActiveWord = status === 'active' && i === activeWordIndex;
                 const hasEntry = !!word.entry;
@@ -188,6 +191,9 @@ export default function SentenceBlock({
                         isClickable
                           ? (e) => {
                               e.stopPropagation();
+                              // Don't open word bubble if user just drag-selected text
+                              const sel = window.getSelection();
+                              if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
                               onWordClick(
                                 displayText,
                                 word.entry,
