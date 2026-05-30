@@ -17,6 +17,8 @@ interface TranscriptViewProps {
   fontSize?: FontSize;
   onSaveSentence?: (sentence: Sentence) => void;
   savedSentenceIds?: Set<string>;  // set of sentenceId strings already saved
+  /** Called when user saves an arbitrary text selection (Kindle-style) */
+  onSaveSelection?: (text: string, cnText: string, startTime: number) => void;
 }
 
 // ── Free Dictionary API types ────────────────────────────────────────────────
@@ -75,7 +77,7 @@ function cleanWord(text: string): string {
 // ── Component ────────────────────────────────────────────────────────────────
 export default function TranscriptView({
   episode, currentTime, onSeek, onSentenceSeek, onPlayPause, onTap, fontSize = 'base',
-  onSaveSentence, savedSentenceIds,
+  onSaveSentence, savedSentenceIds, onSaveSelection,
 }: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -87,6 +89,59 @@ export default function TranscriptView({
 
   // Scroll detection — prevents "scroll = tap" on mobile
   const didScrollRef = useRef(false);
+
+  // ── Text-selection bookmark (Kindle-style) ────────────────────────────────
+  interface SelectionSave {
+    text: string;
+    cnText: string;
+    startTime: number;
+    rect: DOMRect;
+  }
+  const [selection, setSelection] = useState<SelectionSave | null>(null);
+
+  useEffect(() => {
+    if (!onSaveSentence && !onSaveSelection) return;
+
+    /** Walk up the DOM to find the nearest ancestor with data-start-time */
+    function findSentenceData(node: Node | null): { startTime: number; cnText: string } | null {
+      while (node) {
+        if (node instanceof HTMLElement) {
+          const st = node.dataset.startTime;
+          if (st) return { startTime: parseFloat(st), cnText: node.dataset.cnText ?? '' };
+        }
+        node = node.parentNode;
+      }
+      return null;
+    }
+
+    const handlePointerUp = () => {
+      // Delay so the browser can finalize the selection (important on iOS)
+      setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) { setSelection(null); return; }
+        const text = sel.toString().trim();
+        if (text.length < 2) { setSelection(null); return; }
+
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (!rect.width && !rect.height) { setSelection(null); return; }
+
+        const data = findSentenceData(range.startContainer);
+        setSelection({ text, cnText: data?.cnText ?? '', startTime: data?.startTime ?? 0, rect });
+      }, 80);
+    };
+
+    const handlePointerDown = () => setSelection(null);
+
+    document.addEventListener('mouseup', handlePointerUp);
+    document.addEventListener('touchend', handlePointerUp);
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => {
+      document.removeEventListener('mouseup', handlePointerUp);
+      document.removeEventListener('touchend', handlePointerUp);
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [onSaveSentence, onSaveSelection]);
 
   const { transcript } = episode;
 
@@ -228,6 +283,50 @@ export default function TranscriptView({
           episodeId={episode.id}
         />
       )}
+
+      {/* ── Text-selection save popup (Kindle-style) ── */}
+      {selection && (onSaveSelection || onSaveSentence) && (() => {
+        const GAP = 8;
+        const BTN_H = 34;
+        const BTN_W = 76;
+        let left = selection.rect.left + selection.rect.width / 2 - BTN_W / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - BTN_W - 8));
+        const rawTop = selection.rect.top - BTN_H - GAP;
+        const finalTop = rawTop < 8 ? selection.rect.bottom + GAP : rawTop;
+        return (
+          <div
+            className="fixed z-50 flex items-center bg-accent text-black text-xs font-semibold rounded-xl shadow-xl overflow-hidden"
+            style={{ left, top: finalTop, height: BTN_H, width: BTN_W, pointerEvents: 'auto' }}
+          >
+            <button
+              className="flex-1 flex items-center justify-center gap-1 h-full px-3 hover:bg-black/10 transition-colors"
+              onMouseDown={(e) => {
+                e.preventDefault(); // keep selection alive until we read it
+                const s = selection;
+                setSelection(null);
+                window.getSelection()?.removeAllRanges();
+                if (onSaveSelection) {
+                  onSaveSelection(s.text, s.cnText, s.startTime);
+                }
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                const s = selection;
+                setSelection(null);
+                window.getSelection()?.removeAllRanges();
+                if (onSaveSelection) {
+                  onSaveSelection(s.text, s.cnText, s.startTime);
+                }
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+              </svg>
+              收藏
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -23,6 +23,7 @@ interface YTPlayer {
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   setPlaybackRate(rate: number): void;
   getCurrentTime(): number;
+  getDuration(): number;
   destroy(): void;
 }
 
@@ -139,6 +140,9 @@ const VideoPlayer = forwardRef<VideoHandle, VideoPlayerProps>(
             onReady: (e) => {
               if (!mounted) return;
               ytRef.current = e.target;
+              // Trigger onLoadedMetadata so PlayerPage can auto-resume
+              const dur = e.target.getDuration();
+              if (dur > 0) cbMeta.current(dur);
             },
             onStateChange: (e) => {
               if (!mounted) return;

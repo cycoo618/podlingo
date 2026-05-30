@@ -271,7 +271,7 @@ export default function PlayerPage() {
     }
   }, [episode?.videoUrl, activateSeekFreeze]);
 
-  // ── Save sentence ─────────────────────────────────────────────────────────
+  // ── Save sentence (single sentence bookmark) ─────────────────────────────
   const handleSaveSentence = useCallback((sentence: Sentence) => {
     if (!episode) return;
     saveSentence({
@@ -282,6 +282,21 @@ export default function PlayerPage() {
       episodeTitle: episode.title,
       podcastName:  episode.podcastName,
       startTime:    sentence.startTime,
+    });
+  }, [episode, saveSentence]);
+
+  // ── Save arbitrary text selection (Kindle-style) ──────────────────────────
+  const handleSaveSelection = useCallback((text: string, cnText: string, startTime: number) => {
+    if (!episode) return;
+    // Use start time as part of the key so multiple selections can coexist
+    saveSentence({
+      sentenceId:   `sel_${startTime.toFixed(0)}_${Date.now()}`,
+      enText:       text,
+      cnText,
+      episodeId:    episode.id,
+      episodeTitle: episode.title,
+      podcastName:  episode.podcastName,
+      startTime,
     });
   }, [episode, saveSentence]);
 
@@ -736,6 +751,7 @@ export default function PlayerPage() {
             onTap={handleTranscriptTap}
             fontSize={fontSize}
             onSaveSentence={user ? handleSaveSentence : undefined}
+            onSaveSelection={user ? handleSaveSelection : undefined}
             savedSentenceIds={savedSentenceIds}
           />
 

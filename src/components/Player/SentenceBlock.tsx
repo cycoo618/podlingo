@@ -59,6 +59,9 @@ export default function SentenceBlock({
   return (
     <div
       className={`group relative flex gap-3 transition-opacity duration-300 ${STATUS_STYLES[status]}`}
+      data-sentence-id={sentence.id}
+      data-start-time={sentence.startTime}
+      data-cn-text={sentence.cnText}
       onClick={(e) => {
         e.stopPropagation();
         onSentenceClick(sentence.startTime);
