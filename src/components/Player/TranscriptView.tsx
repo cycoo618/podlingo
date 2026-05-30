@@ -235,6 +235,9 @@ export default function TranscriptView({
 
   const handleContainerClick = useCallback(() => {
     if (didScrollRef.current) return;   // was a scroll gesture, not a tap
+    // If user just finished a text selection drag, don't toggle play/pause
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
     if (bubble) { closeBubble(); }
     else { onPlayPause(); onTap?.(); }
   }, [bubble, closeBubble, onPlayPause, onTap]);
