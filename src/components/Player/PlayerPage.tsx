@@ -388,6 +388,32 @@ export default function PlayerPage() {
 
   // ── Auto-resume: seek to saved position once media reports its duration ───
   const didAutoResumeRef = useRef(false);
+
+  /** Find which chapter index contains `time`, ignoring lock status. */
+  const chapterIdxForTime = useCallback((time: number): number => {
+    if (!hasChapters) return 0;
+    const idx = chapters.findIndex(
+      (ch, i) => time >= ch.startTime && (i === chapters.length - 1 || time < chapters[i + 1].startTime)
+    );
+    return idx >= 0 ? idx : 0;
+  }, [chapters, hasChapters]);
+
+  /** Switch to the chapter that contains `time`, then seek to `time`. No auto-play. */
+  const resumeAtTime = useCallback((time: number) => {
+    if (hasChapters) {
+      const idx = chapterIdxForTime(time);
+      // Don't resume into a locked chapter — fall back to chapter 0
+      const safeIdx = isChapterLocked(idx) ? 0 : idx;
+      const safeTime = safeIdx === idx ? time : chapters[0]?.startTime ?? 0;
+      setSelectedChapterIdx(safeIdx);
+      chapterEndAckedRef.current = false;
+      setChapterEnded(false);
+      setTimeout(() => handleSeek(safeTime), 300);
+    } else {
+      setTimeout(() => handleSeek(time), 300);
+    }
+  }, [hasChapters, chapterIdxForTime, isChapterLocked, chapters, handleSeek]);
+
   const handleLoadedMetadata = useCallback((dur: number) => {
     setDuration(dur);
     if (!didAutoResumeRef.current) {
@@ -396,22 +422,20 @@ export default function PlayerPage() {
       if (playbackRate !== 1) {
         setTimeout(() => videoRef.current?.setPlaybackRate(playbackRate), 300);
       }
-      // If navigated here with a seekTo (e.g. from vocab jump), use that first
+      // If navigated here with a seekTo (e.g. from vocab jump), prioritise that
       const seekToFromNav = (location.state as { seekTo?: number } | null)?.seekTo;
       if (seekToFromNav != null && seekToFromNav > 0) {
-        setTimeout(() => handleSeek(seekToFromNav), 300);
+        resumeAtTime(seekToFromNav);
         return;
       }
-      // In chapter mode the user selects which chapter to resume — skip auto-resume
-      if (!hasChapters) {
-        const saved = getSavedPosition();
-        if (saved > 1) {
-          setTimeout(() => handleSeek(saved), 300);
-        }
+      // Auto-resume from last saved position (works for both chapter and non-chapter)
+      const saved = getSavedPosition();
+      if (saved > 1) {
+        resumeAtTime(saved);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getSavedPosition, playbackRate, hasChapters, location.state]);
+  }, [getSavedPosition, playbackRate, location.state, resumeAtTime]);
 
   // ── Save progress every 5s while playing ─────────────────────────────────
   useEffect(() => {

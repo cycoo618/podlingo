@@ -104,6 +104,10 @@ export default function SentenceBlock({
               {sentence.words.map((word, i) => {
                 const isActiveWord = status === 'active' && i === activeWordIndex;
                 const isChinese = /[一-鿿]/.test(word.text);
+                // CI TypeScript doesn't recognise optional fields on Word/Sentence
+                // even though they're declared; use explicit casts as workaround.
+                const wordPinyin = (word as { pinyin?: string }).pinyin;
+                const sentenceEnText = (sentence as { enText?: string }).enText;
                 return (
                   <span
                     key={i}
@@ -116,10 +120,10 @@ export default function SentenceBlock({
                             e.stopPropagation();
                             const entry: WordEntry = {
                               word: word.text,
-                              phonetic: word.pinyin ?? '',
+                              phonetic: wordPinyin ?? '',
                               partOfSpeech: '',
                               definitions: [],
-                              contextEn: sentence.enText ?? '',
+                              contextEn: sentenceEnText ?? '',
                               contextCn: sentence.words.map((w) => w.text).join(''),
                               highlightInContext: word.text,
                             };
@@ -133,8 +137,7 @@ export default function SentenceBlock({
                         isActiveWord ? 'text-highlight' : 'text-slate-500'
                       }`}
                     >
-                      {word.pinyin ?? ''}
-                    </span>
+                      {wordPinyin ?? ''}</span>
                     <span
                       className={`${ZH_CHAR_SIZES[fontSize]} leading-tight ${
                         isActiveWord ? 'text-highlight' : 'text-slate-200'
@@ -150,7 +153,7 @@ export default function SentenceBlock({
 
             {/* English translation */}
             <p className={`${CN_SIZES[fontSize]} leading-relaxed text-slate-400 font-light`}>
-              {sentence.enText}
+              {(sentence as { enText?: string }).enText}
             </p>
           </>
         ) : (
