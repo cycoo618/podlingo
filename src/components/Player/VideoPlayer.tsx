@@ -173,7 +173,7 @@ const VideoPlayer = forwardRef<VideoHandle, VideoPlayerProps>(
         <div className="bg-black w-full" style={{ aspectRatio: '16/9' }}>
           <iframe
             ref={iframeRef}
-            src={src.includes('controls=') ? src : (src.includes('?') ? src + '&controls=0' : src + '?controls=0')}
+            src={src}
             className="w-full h-full border-0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen

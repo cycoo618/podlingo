@@ -71,14 +71,13 @@ export default function SentenceBlock({
         }`}
       />
 
-      {/* Bookmark button — shown on hover (desktop) or always subtle (mobile) */}
+      {/* Bookmark button — always faintly visible, full on hover/saved */}
       {onSaveSentence && (
         <button
           className={`absolute -right-1 top-0 w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150
-            opacity-0 group-hover:opacity-100
             ${isSentenceSaved
               ? 'text-accent opacity-100'
-              : 'text-slate-500 hover:text-accent hover:bg-white/5'
+              : 'text-slate-500 opacity-20 group-hover:opacity-70 hover:text-accent hover:bg-white/5'
             }`}
           onClick={(e) => {
             e.stopPropagation();
@@ -176,7 +175,7 @@ export default function SentenceBlock({
                         hasEntry
                           ? 'cursor-pointer hover:text-accent hover:underline decoration-accent/50 underline-offset-2'
                           : isClickable
-                          ? 'cursor-pointer hover:text-slate-100'
+                          ? 'cursor-pointer hover:text-accent'
                           : ''
                       }`}
                       onClick={
