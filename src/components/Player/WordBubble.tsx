@@ -15,7 +15,7 @@ export default function WordBubble({ word, entry, anchorRect, onClose, episodeId
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<BubblePosition | null>(null);
   const { user } = useAuth();
-  const { saveWord, removeWord, isSaved } = useVocabulary();
+  const { saveWord, removeItem, isSaved } = useVocabulary();
   const wordKey = word.toLowerCase();
   const alreadySaved = isSaved(wordKey);
 
@@ -110,7 +110,7 @@ export default function WordBubble({ word, entry, anchorRect, onClose, episodeId
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (alreadySaved) removeWord(wordKey);
+                        if (alreadySaved) removeItem(wordKey);
                         else saveWord(entry, episodeId);
                       }}
                       className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${

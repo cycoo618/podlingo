@@ -21,12 +21,27 @@ const CN_SIZES: Record<FontSize, string> = {
   lg: 'text-base',
 };
 
+const ZH_CHAR_SIZES: Record<FontSize, string> = {
+  sm: 'text-lg',
+  base: 'text-xl',
+  lg: 'text-2xl',
+};
+
+const ZH_PINYIN_SIZES: Record<FontSize, string> = {
+  sm: 'text-[9px]',
+  base: 'text-[10px]',
+  lg: 'text-xs',
+};
+
 interface SentenceBlockProps {
   sentence: Sentence;
   status: SentenceStatus;
   activeWordIndex: number;
+  language?: 'en-zh' | 'zh-en';
   onWordClick: (wordText: string, entry: WordEntry | undefined, rect: DOMRect) => void;
   onSentenceClick: (startTime: number) => void;
+  onSaveSentence?: (sentence: Sentence) => void;
+  isSentenceSaved?: boolean;
   fontSize?: FontSize;
 }
 
@@ -34,8 +49,11 @@ export default function SentenceBlock({
   sentence,
   status,
   activeWordIndex,
+  language = 'en-zh',
   onWordClick,
   onSentenceClick,
+  onSaveSentence,
+  isSentenceSaved = false,
   fontSize = 'base',
 }: SentenceBlockProps) {
   return (
@@ -53,62 +71,143 @@ export default function SentenceBlock({
         }`}
       />
 
-      <div className="flex-1 space-y-1.5">
-        {/* English line */}
-        <p className={`${EN_SIZES[fontSize]} leading-relaxed text-slate-200 select-none`}>
-          {sentence.words.map((word, i) => {
-            const isActiveWord = status === 'active' && i === activeWordIndex;
-            const hasEntry = !!word.entry;
-            // Always work with the trimmed core — spaces are handled separately below
-            const core = word.text.trim();
-            const displayText = normalizeWord(core);
-            const cleanedLen = core.replace(/[^a-zA-Z'-]/g, '').length;
-            const isClickable = cleanedLen >= 2;
-
-            return (
-              // Fragment so we can place the inter-word space OUTSIDE the
-              // highlighted span. This prevents the background box from
-              // including a leading space (which caused visible gaps in JRE
-              // where WhisperX strips leading whitespace from word tokens).
-              <Fragment key={i}>
-                {i > 0 && ' '}
-                <span
-                  className={`inline transition-colors duration-150 rounded-sm ${
-                    isActiveWord ? 'bg-highlight/25 text-highlight' : ''
-                  } ${
-                    hasEntry
-                      ? 'cursor-pointer hover:text-accent hover:underline decoration-accent/50 underline-offset-2'
-                      : isClickable
-                      ? 'cursor-pointer hover:text-slate-100'
-                      : ''
-                  }`}
-                  onClick={
-                    isClickable
-                      ? (e) => {
-                          e.stopPropagation();
-                          onWordClick(
-                            displayText,
-                            word.entry,
-                            (e.target as HTMLElement).getBoundingClientRect(),
-                          );
-                        }
-                      : undefined
-                  }
-                >
-                  {displayText}
-                </span>
-              </Fragment>
-            );
-          })}
-        </p>
-
-        {/* Chinese translation */}
-        <p
-          className={`${CN_SIZES[fontSize]} leading-relaxed text-slate-400 font-light`}
-          style={{ fontFamily: "'Noto Sans SC', sans-serif" }}
+      {/* Bookmark button — shown on hover (desktop) or always subtle (mobile) */}
+      {onSaveSentence && (
+        <button
+          className={`absolute -right-1 top-0 w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150
+            opacity-0 group-hover:opacity-100
+            ${isSentenceSaved
+              ? 'text-accent opacity-100'
+              : 'text-slate-500 hover:text-accent hover:bg-white/5'
+            }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSaveSentence(sentence);
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onSaveSentence(sentence);
+          }}
+          title="收藏句子"
         >
-          {sentence.cnText}
-        </p>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill={isSentenceSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+
+      <div className="flex-1 space-y-1.5">
+        {language === 'zh-en' ? (
+          <>
+            {/* Chinese words with pinyin above each character/word */}
+            <div className="flex flex-wrap gap-x-2 gap-y-1 select-none">
+              {sentence.words.map((word, i) => {
+                const isActiveWord = status === 'active' && i === activeWordIndex;
+                const isChinese = /[一-鿿]/.test(word.text);
+                return (
+                  <span
+                    key={i}
+                    className={`inline-flex flex-col items-center rounded px-0.5 transition-colors duration-150 ${
+                      isActiveWord ? 'bg-highlight/25' : ''
+                    } ${isChinese ? 'cursor-pointer hover:bg-accent/15' : ''}`}
+                    onClick={
+                      isChinese
+                        ? (e) => {
+                            e.stopPropagation();
+                            const entry: WordEntry = {
+                              word: word.text,
+                              phonetic: word.pinyin ?? '',
+                              partOfSpeech: '',
+                              definitions: [],
+                              contextEn: sentence.enText ?? '',
+                              contextCn: sentence.words.map((w) => w.text).join(''),
+                              highlightInContext: word.text,
+                            };
+                            onWordClick(word.text, entry, (e.target as HTMLElement).getBoundingClientRect());
+                          }
+                        : undefined
+                    }
+                  >
+                    <span
+                      className={`${ZH_PINYIN_SIZES[fontSize]} leading-none font-mono ${
+                        isActiveWord ? 'text-highlight' : 'text-slate-500'
+                      }`}
+                    >
+                      {word.pinyin ?? ''}
+                    </span>
+                    <span
+                      className={`${ZH_CHAR_SIZES[fontSize]} leading-tight ${
+                        isActiveWord ? 'text-highlight' : 'text-slate-200'
+                      }`}
+                      style={{ fontFamily: "'Noto Sans SC', sans-serif" }}
+                    >
+                      {word.text}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* English translation */}
+            <p className={`${CN_SIZES[fontSize]} leading-relaxed text-slate-400 font-light`}>
+              {sentence.enText}
+            </p>
+          </>
+        ) : (
+          <>
+            {/* English line */}
+            <p className={`${EN_SIZES[fontSize]} leading-relaxed text-slate-200 select-none`}>
+              {sentence.words.map((word, i) => {
+                const isActiveWord = status === 'active' && i === activeWordIndex;
+                const hasEntry = !!word.entry;
+                const core = word.text.trim();
+                const displayText = normalizeWord(core);
+                const cleanedLen = core.replace(/[^a-zA-Z'-]/g, '').length;
+                const isClickable = cleanedLen >= 2;
+
+                return (
+                  <Fragment key={i}>
+                    {i > 0 && ' '}
+                    <span
+                      className={`inline transition-colors duration-150 rounded-sm ${
+                        isActiveWord ? 'bg-highlight/25 text-highlight' : ''
+                      } ${
+                        hasEntry
+                          ? 'cursor-pointer hover:text-accent hover:underline decoration-accent/50 underline-offset-2'
+                          : isClickable
+                          ? 'cursor-pointer hover:text-slate-100'
+                          : ''
+                      }`}
+                      onClick={
+                        isClickable
+                          ? (e) => {
+                              e.stopPropagation();
+                              onWordClick(
+                                displayText,
+                                word.entry,
+                                (e.target as HTMLElement).getBoundingClientRect(),
+                              );
+                            }
+                          : undefined
+                      }
+                    >
+                      {displayText}
+                    </span>
+                  </Fragment>
+                );
+              })}
+            </p>
+
+            {/* Chinese translation */}
+            <p
+              className={`${CN_SIZES[fontSize]} leading-relaxed text-slate-400 font-light`}
+              style={{ fontFamily: "'Noto Sans SC', sans-serif" }}
+            >
+              {sentence.cnText}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

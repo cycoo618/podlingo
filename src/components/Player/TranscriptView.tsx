@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Episode, WordEntry } from '../../types';
+import type { Episode, Sentence, WordEntry } from '../../types';
 import SentenceBlock from './SentenceBlock';
 import WordBubble from './WordBubble';
 
@@ -15,6 +15,8 @@ interface TranscriptViewProps {
   onPlayPause: () => void;
   onTap?: () => void;
   fontSize?: FontSize;
+  onSaveSentence?: (sentence: Sentence) => void;
+  savedSentenceIds?: Set<string>;  // set of sentenceId strings already saved
 }
 
 // ── Free Dictionary API types ────────────────────────────────────────────────
@@ -73,6 +75,7 @@ function cleanWord(text: string): string {
 // ── Component ────────────────────────────────────────────────────────────────
 export default function TranscriptView({
   episode, currentTime, onSeek, onSentenceSeek, onPlayPause, onTap, fontSize = 'base',
+  onSaveSentence, savedSentenceIds,
 }: TranscriptViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -137,13 +140,14 @@ export default function TranscriptView({
     preloadedEntry: WordEntry | undefined,
     rect: DOMRect,
   ) => {
-    const key = cleanWord(wordText);
+    // For pre-loaded entries (e.g. Chinese words with pinyin), use text directly as key
+    const key = preloadedEntry ? wordText : cleanWord(wordText);
     if (!key) return;
 
     if (activeWordRef.current === key) { closeBubble(); return; }
     activeWordRef.current = key;
 
-    // 1. Pre-loaded entry (already in Chinese from episode data)
+    // 1. Pre-loaded entry (zh-en Chinese words or en-zh pre-annotated words)
     if (preloadedEntry) {
       setBubble({ word: key, entry: preloadedEntry, rect });
       return;
@@ -202,8 +206,11 @@ export default function TranscriptView({
                 sentence={sentence}
                 status={status}
                 activeWordIndex={activeWordIdx}
+                language={episode.language}
                 onWordClick={handleWordClick}
                 onSentenceClick={handleSentenceClick}
+                onSaveSentence={onSaveSentence}
+                isSentenceSaved={savedSentenceIds?.has(sentence.id)}
                 fontSize={fontSize}
               />
             </div>

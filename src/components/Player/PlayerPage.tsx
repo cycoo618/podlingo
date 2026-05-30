@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { snapChaptersToBoundaries } from '../../utils/snapChapters';
 import { mockEpisodes } from '../../data/mockEpisodes';
 import TranscriptView from './TranscriptView';
@@ -9,14 +9,18 @@ import VideoPlayer from './VideoPlayer';
 import type { VideoHandle } from './VideoPlayer';
 import { useEpisodeProgress } from '../../hooks/useEpisodeProgress';
 import { useAuth } from '../../contexts/AuthContext';
+import { useVocabulary } from '../../hooks/useVocabulary';
+import type { Sentence } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, premium } = useAuth();
   const episode = mockEpisodes.find((e) => e.id === id);
+  const { saveSentence, items } = useVocabulary();
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<VideoHandle>(null);
@@ -267,6 +271,30 @@ export default function PlayerPage() {
     }
   }, [episode?.videoUrl, activateSeekFreeze]);
 
+  // ── Save sentence ─────────────────────────────────────────────────────────
+  const handleSaveSentence = useCallback((sentence: Sentence) => {
+    if (!episode) return;
+    saveSentence({
+      sentenceId:   sentence.id,
+      enText:       sentence.words.map((w) => w.text).join(' ').trim(),
+      cnText:       sentence.cnText ?? '',
+      episodeId:    episode.id,
+      episodeTitle: episode.title,
+      podcastName:  episode.podcastName,
+      startTime:    sentence.startTime,
+    });
+  }, [episode, saveSentence]);
+
+  // Build saved sentence IDs set for quick lookup in TranscriptView
+  const savedSentenceIds = useMemo(() => {
+    if (!episode) return new Set<string>();
+    return new Set(
+      items
+        .filter((it) => it.type === 'sentence' && it.episodeId === episode.id)
+        .map((it) => (it as { sentenceId: string }).sentenceId),
+    );
+  }, [items, episode]);
+
   const handleSkip = useCallback((delta: number) => {
     setCurrentTime((t) => {
       const lo = selectedChapter ? chapterStart : 0;
@@ -368,6 +396,12 @@ export default function PlayerPage() {
       if (playbackRate !== 1) {
         setTimeout(() => videoRef.current?.setPlaybackRate(playbackRate), 300);
       }
+      // If navigated here with a seekTo (e.g. from vocab jump), use that first
+      const seekToFromNav = (location.state as { seekTo?: number } | null)?.seekTo;
+      if (seekToFromNav != null && seekToFromNav > 0) {
+        setTimeout(() => handleSeek(seekToFromNav), 300);
+        return;
+      }
       // In chapter mode the user selects which chapter to resume — skip auto-resume
       if (!hasChapters) {
         const saved = getSavedPosition();
@@ -377,7 +411,7 @@ export default function PlayerPage() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getSavedPosition, playbackRate, hasChapters]);
+  }, [getSavedPosition, playbackRate, hasChapters, location.state]);
 
   // ── Save progress every 5s while playing ─────────────────────────────────
   useEffect(() => {
@@ -677,6 +711,8 @@ export default function PlayerPage() {
             onPlayPause={handlePlayPause}
             onTap={handleTranscriptTap}
             fontSize={fontSize}
+            onSaveSentence={user ? handleSaveSentence : undefined}
+            savedSentenceIds={savedSentenceIds}
           />
 
           {/* Mobile only: audio controls below transcript */}
